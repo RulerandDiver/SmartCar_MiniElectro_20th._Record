@@ -1,0 +1,203 @@
+C251 COMPILER V5.60.0,  Key                                                                19/06/25  15:53:42  PAGE 1   
+
+
+C251 COMPILER V5.60.0, COMPILATION OF MODULE Key
+OBJECT MODULE PLACED IN .\Out_File\Key.obj
+COMPILER INVOKED BY: E:\Kust-Travel\Keil_v5\C251\BIN\C251.EXE ..\CODE\Key.c LARGE INTR2 FLOAT64 WARNINGLEVEL(3) OPTIMIZE
+                    -(0,SPEED) BROWSE INCDIR(..\..\Libraries\libraries;..\..\Libraries\seekfree_libraries;..\..\Libraries\seekfree_peripheral
+                    -;..\CODE;..\USER\inc;..\USER\src;..\..\Libraries\seekfree_components) DEBUG PRINT(.\Out_File\Key.lst) OBJECT(.\Out_File\
+                    -Key.obj) 
+
+stmt  level    source
+
+    1          #include "Key.h"
+    2          
+    3          /**************************************************************************
+    4          函数功能：按键扫描
+    5          入口参数：双击等待时间 20~50
+    6          返回  值：按键状态 
+    7          **************************************************************************/
+    8          enum KeyValue Key_Single_Double(uint8 double_click_time)
+    9          {
+   10   1              //静态枚举，定义状态变量，初始状态为IDLE
+   11   1          // 状态定义
+   12   1          // === 所有局部变量必须在函数开头声明 ===
+   13   1          static uint8 state = STATE_IDLE;
+   14   1          static enum KeyValue first_key = Null;
+   15   1          static uint16 press_count = 0;
+   16   1          static uint16 release_count = 0;
+   17   1          static uint8 debounce_count = 0;
+   18   1          static uint8 last_up_state = 1;
+   19   1          static uint8 last_down_state = 1;
+   20   1          static uint8 last_enter_state = 1;
+   21   1          
+   22   1          uint8 current_up, current_down, current_enter;
+   23   1          uint8 up_pressed = 0, down_pressed = 0, enter_pressed = 0;
+   24   1          
+   25   1          // 读取当前按键状态
+   26   1          current_up = KEY_UP_PIN;
+   27   1          current_down = KEY_DOWN_PIN;
+   28   1          current_enter = KEY_ENTER_PIN;
+   29   1          
+   30   1          // 消抖处理 - 连续3次相同状态才确认
+   31   1          if (current_up != last_up_state || 
+   32   1              current_down != last_down_state || 
+   33   1              current_enter != last_enter_state) 
+   34   1          {
+   35   2              debounce_count = 0;
+   36   2              last_up_state = current_up;
+   37   2              last_down_state = current_down;
+   38   2              last_enter_state = current_enter;
+   39   2              return Null;
+   40   2          } 
+   41   1          else if (debounce_count < 3) 
+   42   1          {
+   43   2              debounce_count++;
+   44   2              return Null;
+   45   2          }
+   46   1          
+   47   1          // 解析按键状态（假设低电平按下）
+   48   1          up_pressed = (current_up == 0);
+   49   1          down_pressed = (current_down == 0);
+   50   1          enter_pressed = (current_enter == 0);
+   51   1          
+   52   1          // === 状态机处理 ===
+   53   1              //state 可以用数字，define定义仍是数字，但不可用枚举
+   54   1          switch (state) 
+   55   1          {
+   56   2              case STATE_IDLE:
+C251 COMPILER V5.60.0,  Key                                                                19/06/25  15:53:42  PAGE 2   
+
+   57   2                  if (up_pressed) 
+   58   2                  {
+   59   3                      first_key = Up;
+   60   3                      press_count = 0;
+   61   3                      state = STATE_FIRST_PRESS;
+   62   3                  } 
+   63   2                  else if (down_pressed) 
+   64   2                  {
+   65   3                      first_key = Down;
+   66   3                      press_count = 0;
+   67   3                      state = STATE_FIRST_PRESS;
+   68   3                  } 
+   69   2                  else if (enter_pressed) 
+   70   2                  {
+   71   3                      first_key = Enter;
+   72   3                      press_count = 0;
+   73   3                      state = STATE_FIRST_PRESS;
+   74   3                  }
+   75   2                  break;
+   76   2                  
+   77   2              case STATE_FIRST_PRESS:
+   78   2                  press_count++;
+   79   2                  
+   80   2                  // 长按检测
+   81   2                  if (press_count > LONG_PRESS_COUNT) 
+   82   2                  {
+   83   3                      // 进入长按状态，不立即返回
+   84   3                      state = STATE_LONG_PRESS;
+   85   3                      press_count = 0;
+   86   3                  }
+   87   2                  
+   88   2                  // 按键释放
+   89   2                  if (!up_pressed && !down_pressed && !enter_pressed) 
+   90   2                  {
+   91   3                      // 在达到长按阈值前释放，准备检测双击
+   92   3                      release_count = 0;
+   93   3                      state = STATE_FIRST_RELEASE;
+   94   3                  }
+   95   2                  break;
+   96   2                  
+   97   2              case STATE_LONG_PRESS:  // 新增的长按处理状态
+   98   2                  // 在此状态下忽略所有按键操作，只等待释放
+   99   2                  if (!up_pressed && !down_pressed && !enter_pressed) 
+  100   2                  {
+  101   3                      state = STATE_IDLE;
+  102   3                      
+  103   3                      // 返回长按事件
+  104   3                      if (first_key == Up) 
+  105   3                      {
+  106   4                          return Up_Long;
+  107   4                      }
+  108   3                      else if (first_key == Down) 
+  109   3                      {
+  110   4                          return Down_Long;
+  111   4                      }
+  112   3                      else if (first_key == Enter) 
+  113   3                      {
+  114   4                          return BigChange;
+  115   4                      }
+  116   3                  }
+  117   2                  break;
+  118   2                  
+  119   2              case STATE_FIRST_RELEASE:
+  120   2                  release_count++;
+  121   2                  
+  122   2                  // 双击超时
+C251 COMPILER V5.60.0,  Key                                                                19/06/25  15:53:42  PAGE 3   
+
+  123   2                  if (release_count > double_click_time) 
+  124   2                  {
+  125   3                      state = STATE_IDLE;
+  126   3                      return first_key; // 返回单击
+  127   3                  }
+  128   2                  
+  129   2                  // 第二次按下（必须是同一个键）
+  130   2                  if ((first_key == Up && up_pressed) ||
+  131   2                      (first_key == Down && down_pressed) ||
+  132   2                      (first_key == Enter && enter_pressed)) 
+  133   2                  {
+  134   3                      state = STATE_SECOND_PRESS;
+  135   3                  }
+  136   2                  break;
+  137   2                  
+  138   2              case STATE_SECOND_PRESS:
+  139   2                  // 等待释放
+  140   2                  if (!up_pressed && !down_pressed && !enter_pressed) 
+  141   2                  {
+  142   3                      state = STATE_IDLE;
+  143   3                      
+  144   3                      // 返回双击类型
+  145   3                      if (first_key == Up) 
+  146   3                      {
+  147   4                          return Up_Test;
+  148   4                      }
+  149   3                      else if (first_key == Down) 
+  150   3                      {
+  151   4                          return Down_Test;
+  152   4                      }
+  153   3                      else if (first_key == Enter) 
+  154   3                      {
+  155   4                          return Back;
+  156   4                      }
+  157   3                  }
+  158   2                  break;
+  159   2          }
+  160   1          
+  161   1          return Null;
+  162   1              
+  163   1      }
+
+
+Module Information          Static   Overlayable
+------------------------------------------------
+  code size            =       765     ------
+  ecode size           =    ------     ------
+  data size            =    ------     ------
+  idata size           =    ------     ------
+  pdata size           =    ------     ------
+  xdata size           =        18     ------
+  xdata-const size     =    ------     ------
+  edata size           =    ------     ------
+  bit size             =    ------     ------
+  ebit size            =    ------     ------
+  bitaddressable size  =    ------     ------
+  ebitaddressable size =    ------     ------
+  far data size        =    ------     ------
+  huge data size       =    ------     ------
+  const size           =    ------     ------
+  hconst size          =        51     ------
+End of Module Information.
+
+
+C251 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)
