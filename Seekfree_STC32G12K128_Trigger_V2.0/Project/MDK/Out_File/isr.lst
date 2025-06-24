@@ -1,0 +1,470 @@
+C251 COMPILER V5.60.0,  isr                                                                23/06/25  18:43:05  PAGE 1   
+
+
+C251 COMPILER V5.60.0, COMPILATION OF MODULE isr
+OBJECT MODULE PLACED IN .\Out_File\isr.obj
+COMPILER INVOKED BY: E:\Kust-Travel\Keil_v5\C251\BIN\C251.EXE ..\USER\src\isr.c LARGE INTR2 FLOAT64 WARNINGLEVEL(3) OPTI
+                    -MIZE(0,SPEED) BROWSE INCDIR(..\..\Libraries\libraries;..\..\Libraries\seekfree_libraries;..\..\Libraries\seekfree_periph
+                    -eral;..\CODE;..\USER\inc;..\USER\src;..\..\Libraries\seekfree_components) DEBUG PRINT(.\Out_File\isr.lst) OBJECT(.\Out_F
+                    -ile\isr.obj) 
+
+stmt  level    source
+
+    1          ///******************************************************************************************************
+             -***************
+    2          // * COPYRIGHT NOTICE
+    3          // * Copyright (c) 2020,逐飞科技
+    4          // * All rights reserved.
+    5          // * 技术讨论QQ群：一群：179029047(已满)  二群：244861897(已满)  三群：824575535
+    6          // *
+    7          // * 以下所有内容版权均属逐飞科技所有，未经允许不得用于商业用途，
+    8          // * 欢迎各位使用并传播本程序，修改内容时必须保留逐飞科技的版权声明。
+    9          // *
+   10          // * @file                      isr
+   11          // * @company                   成都逐飞科技有限公司
+   12          // * @author                    逐飞科技(QQ790875685)
+   13          // * @version                   查看doc内version文件 版本说明
+   14          // * @Software                  MDK FOR C251 V5.60
+   15          // * @Target core               STC32G12K128
+   16          // * @Taobao                    https://seekfree.taobao.com/
+   17          // * @date                      2020-4-14
+   18          // ******************************************************************************************************
+             -**************/
+   19          #include "headfile.h"
+   20          #include "Key.h"
+   21          #include "Elec.h"
+   22          #include "Filtering.h"
+   23          #include "isr.h"
+   24          /*******************************************************变量区*******************************************
+             -**************/
+   25          uint16 SysTick=0; //定时器轮询
+   26          
+   27          // 蜂鸣器控制相关变量
+   28          static bit beep_flag = 0;          // 蜂鸣器开启标志，1表示开启
+   29          static uint8 beep_count = 0;        // 蜂鸣器计时计数器
+   30          static uint8 track_ten_cnt = 0;    //出入环重复判定计时器
+   31          
+   32          // 陀螺仪角速度的原始值和卡尔曼滤波之后的值
+   33          bit Gyro_Int=0;   /*陀螺仪积分*/
+   34          float Gyro_Z=0;
+   35          float Filtered_GyroZ=0;
+   36          
+   37          int16 positionReal = 0;                        //实际用来作为pid输入的position,即位置误差
+   38          
+   39          int g_SpeedPoint = 80;                                                  //目标速度，一般左右轮基础速度必须一致
+   40          
+   41          volatile uint8  r_position = 55;
+   42          volatile uint16 r_distance = 6400;
+   43          volatile uint16 s_distance = 5000;
+   44          
+   45          //PID参数
+   46          float Turn_Pid=0;
+   47          float Velo_Pid=0;
+   48          
+   49          //占空比
+   50          int16 g_DutyLeft = 0, g_DutyRight = 0;         // 最后真正要给电机的PWM值
+   51          
+   52          /*******************************************************变量区*******************************************
+             -**************/
+C251 COMPILER V5.60.0,  isr                                                                23/06/25  18:43:05  PAGE 2   
+
+   53          
+   54          
+   55          void TM0_Isr() interrupt 1
+   56          {
+   57   1              static count;
+   58   1              if(count++==10) count=0,P64 ^= 1;
+   59   1              //按键扫描
+   60   1              Key_Scan();
+   61   1              //定时器轮询备用
+   62   1              if(SysTick < 100){
+   63   2                      SysTick++;
+   64   2              }
+   65   1              
+   66   1          /* 检测赛道类型变化并控制蜂鸣器 */
+   67   1          if (track_type != track_type_last)
+   68   1          {
+   69   2              // 赛道类型发生变化，启动蜂鸣器
+   70   2              beep_flag = 1;
+   71   2              beep_count = 0;  // 重置计数器
+   72   2              P24 = 1;  // 打开蜂鸣器
+   73   2              
+   74   2              // 更新上一次赛道类型
+   75   2              track_type_last = track_type;
+   76   2          }
+   77   1              
+   78   1          /* 蜂鸣器计时控制 */
+   79   1          if (beep_flag)
+   80   1          {
+   81   2              beep_count++;
+   82   2              // 10ms * 20 = 200ms
+   83   2              if (beep_count >= 10)
+   84   2              {
+   85   3                  beep_count = 0;
+   86   3                  beep_flag = 0;
+   87   3                  P26 = 0;  // 关闭蜂鸣器
+   88   3              }
+   89   2          }   
+   90   1              
+   91   1              /* 出入十字圆环计时判定 */
+   92   1              if (ten_change_flag == 1)
+   93   1              {
+   94   2                      // 10ms * 150 = 1500ms
+   95   2                      track_ten_cnt++;
+   96   2                      if (track_ten_cnt >= 150)
+   97   2                      {
+   98   3                              track_ten_flag = 1;
+   99   3                              track_ten_cnt = 0;
+  100   3                              ten_change_flag = 0;
+  101   3                      }
+  102   2              }
+  103   1              
+  104   1      }
+  105          
+  106          extern void Ultima_Control(void);
+  107          void TM1_Isr() interrupt 3
+  108          {
+  109   1              static count;
+  110   1              //Ultima_Control();
+  111   1              if(count++==20) count=0,P65 ^= 1;       
+  112   1              
+  113   1              /* 读取并清除编码器的值 */
+  114   1              g_encoleft_init  = get_left_encoder();
+  115   1              g_encoright_init = get_right_encoder();
+  116   1              
+  117   1              /* 对编码器的值进行滤波 */
+  118   1              g_EncoderLeft  = LowPass_Filter(&leftSpeedFilt, g_encoleft_init);
+C251 COMPILER V5.60.0,  isr                                                                23/06/25  18:43:05  PAGE 3   
+
+  119   1              g_EncoderRight = LowPass_Filter(&rightSpeedFilt, g_encoright_init);
+  120   1              
+  121   1              /* 对编码器的值进行异常消除 */
+  122   1              g_EncoderLeft  = encoder_debounce(&EncoderL, g_EncoderLeft);
+  123   1              g_EncoderRight = encoder_debounce(&EncoderR, g_EncoderRight);
+  124   1              
+  125   1              /* 取左右编码器平均值 */
+  126   1              g_EncoderAverage = (g_EncoderLeft*2 + g_EncoderRight) / 2;
+  127   1      
+  128   1      
+  129   1              /* 读取陀螺仪原始数据并将其转化为物理数据 */
+  130   1              imu660ra_get_gyro();
+  131   1              Gyro_Z = imu660ra_acc_transition(imu660ra_gyro_z);
+  132   1      
+  133   1      
+  134   1              /* 速度决策 */
+  135   1              if (track_type == 0)//普通直线
+  136   1              {               
+  137   2                      positionReal = position;
+  138   2                      g_SpeedPoint = SPEED_STRAIGHT;
+  139   2              }
+  140   1              else if (track_type == 1)//直角弯道
+  141   1              {               
+  142   2                      positionReal = position;
+  143   2                      g_SpeedPoint = SPEED_ANGLE;
+  144   2              }
+  145   1              else if (track_type == 2)//十字圆环内部
+  146   1              {               
+  147   2                      positionReal = position;
+  148   2                      g_SpeedPoint = SPEED_CROSS;
+  149   2              }
+  150   1              else if (track_type == 3 && track_route_status == 1)//圆环入环
+  151   1              {
+  152   2                      g_SpeedPoint = 60;
+  153   2                      //编码器计步
+  154   2                      g_intencoderALL += g_EncoderAverage;
+  155   2                      //s_distance非实际距离，可以将g_intencoderALL 乘除一个系数得到实际距离
+  156   2                      if(g_intencoderALL <= (int)s_distance)//第一阶段先直行
+  157   2                      {
+  158   3                              positionReal = 0;
+  159   3                      }
+  160   2                      else//进入第二阶段打死进环
+  161   2                      {
+  162   3                              if (track_route == 1)//右环
+  163   3                              {
+  164   4                                      positionReal = -r_position;
+  165   4                              }
+  166   3                              else if (track_route == 2)//左环
+  167   3                              {
+  168   4                                      positionReal = 40;
+  169   4                              }
+  170   3                                                      
+  171   3                              if (g_intencoderALL >= (int)r_distance)//入环完毕
+  172   3                              {
+  173   4                                      track_route_status = 2;
+  174   4                                      g_intencoderALL = 0;
+  175   4                                      g_SpeedPoint = SPEED_ROUNDABOUT;
+  176   4                              }
+  177   3                      }
+  178   2              }
+  179   1              else if (track_type == 3 && track_route_status == 2)//环岛内部
+  180   1              {
+  181   2                      positionReal = position;
+  182   2                      g_SpeedPoint = SPEED_ROUNDABOUT;
+  183   2              }
+  184   1              else if (track_type == 3 && track_route_status == 3)//圆环出环
+C251 COMPILER V5.60.0,  isr                                                                23/06/25  18:43:05  PAGE 4   
+
+  185   1              {
+  186   2                      g_SpeedPoint = SPEED_ROUNDABOUT;
+  187   2                      g_intencoderALL += (g_EncoderLeft + g_EncoderRight) / 2;
+  188   2                      
+  189   2                      if (g_intencoderALL <= 2500)//第一阶段打死出环
+  190   2                      {
+  191   3                              if (track_route == 1)//右环
+  192   3                              {
+  193   4                                      positionReal = -50;
+  194   4                              }
+  195   3                              else if (track_route == 2)//左环
+  196   3                              {
+  197   4                                      positionReal = 50;
+  198   4                              }
+  199   3                      }
+  200   2                      else//第二阶段直走
+  201   2                      {
+  202   3                              positionReal = 0;
+  203   3                              
+  204   3                              if (g_intencoderALL >= 4000)//出环完毕
+  205   3                              {
+  206   4                                      track_type = 0;
+  207   4                                      track_route = 0;
+  208   4                                      track_route_status = 0;
+  209   4                                      
+  210   4                                      g_intencoderALL = 0;
+  211   4                              }
+  212   3                      }
+  213   2              }
+  214   1              else if (track_type == 4)//深度加速模式
+  215   1              {
+  216   2                      positionReal = position;
+  217   2                      g_SpeedPoint = SPEED_SPEED;
+  218   2              }
+  219   1      
+  220   1      
+  221   1              //按键发车，发车后才开始跑PID，防止PID跑飞
+  222   1              if (Go_Flag == 1)
+  223   1              {
+  224   2                      Filtered_GyroZ = Kalman_Update(&imu693_kf, Gyro_Z);//对Gyro_Z进行卡尔曼滤波
+  225   2                      
+  226   2                      Turn_Pid = Pid_Pos_GyroZ(&TurnPID, positionReal, Filtered_GyroZ);
+  227   2                      
+  228   2                      Kalman_Predict(&imu693_kf, Turn_Pid);//更新卡尔曼滤波器的值
+  229   2      
+  230   2                      //计算速度环pid
+  231   2      
+  232   2                      Velo_Pid = Pid_Inc_Ff(&SpeedPID, g_EncoderAverage, g_SpeedPoint);
+  233   2      
+  234   2                      
+  235   2                      //转int
+  236   2                      g_DutyLeft  = (int16)(Velo_Pid - Turn_Pid);
+  237   2                      g_DutyRight = (int16)(Velo_Pid + Turn_Pid);
+  238   2      
+  239   2                      if (protection_flag == 1)
+  240   2                      {
+  241   3      //                      pid_clean(&LeftPID);
+  242   3      //                      pid_clean(&RightPID);
+  243   3                              Pid_Clean(&SpeedPID);
+  244   3                              Pid_Clean(&TurnPID);
+  245   3                              
+  246   3                              //uartSendFlag = 0;
+  247   3                              
+  248   3                              Motor_Ctrl(0, 0);
+  249   3                      }
+  250   2                      else
+C251 COMPILER V5.60.0,  isr                                                                23/06/25  18:43:05  PAGE 5   
+
+  251   2                      {
+  252   3                              Motor_Ctrl(g_DutyLeft, g_DutyRight);
+  253   3                      }
+  254   2              }
+  255   1      
+  256   1              
+  257   1      }
+  258          
+  259          
+  260          
+  261          
+  262          
+  263          
+  264          
+  265          
+  266          
+  267          
+  268          
+  269          
+  270          
+  271          
+  272          
+  273          //UART1中断
+  274          void UART1_Isr() interrupt 4
+  275          {
+  276   1          uint8 res;
+  277   1              static uint8 dwon_count;
+  278   1          if(UART1_GET_TX_FLAG)
+  279   1          {
+  280   2              UART1_CLEAR_TX_FLAG;
+  281   2              busy[1] = 0;
+  282   2          }
+  283   1          if(UART1_GET_RX_FLAG)
+  284   1          {
+  285   2              UART1_CLEAR_RX_FLAG;
+  286   2              res = SBUF;
+  287   2              //程序自动下载
+  288   2              if(res == 0x7F)
+  289   2              {
+  290   3                  if(dwon_count++ > 20)
+  291   3                      IAP_CONTR = 0x60;
+  292   3              }
+  293   2              else
+  294   2              {
+  295   3                  dwon_count = 0;
+  296   3              }
+  297   2          }
+  298   1      }
+  299          
+  300          //UART2中断
+  301          void UART2_Isr() interrupt 8
+  302          {
+  303   1          if(UART2_GET_TX_FLAG)
+  304   1              {
+  305   2              UART2_CLEAR_TX_FLAG;
+  306   2                      busy[2] = 0;
+  307   2              }
+  308   1          if(UART2_GET_RX_FLAG)
+  309   1              {
+  310   2              UART2_CLEAR_RX_FLAG;
+  311   2                      //接收数据寄存器为：S2BUF
+  312   2                      gps_uart_callback(S2BUF);
+  313   2              }
+  314   1      }
+  315          
+  316          
+C251 COMPILER V5.60.0,  isr                                                                23/06/25  18:43:05  PAGE 6   
+
+  317          //UART3中断
+  318          void UART3_Isr() interrupt 17
+  319          {
+  320   1          if(UART3_GET_TX_FLAG)
+  321   1              {
+  322   2              UART3_CLEAR_TX_FLAG;
+  323   2                      busy[3] = 0;
+  324   2              }
+  325   1          if(UART3_GET_RX_FLAG)
+  326   1              {
+  327   2              UART3_CLEAR_RX_FLAG;
+  328   2                      //接收数据寄存器为：S3BUF
+  329   2      
+  330   2              }
+  331   1      }
+  332          
+  333          
+  334          //UART4中断
+  335          void UART4_Isr() interrupt 18
+  336          {
+  337   1          if(UART4_GET_TX_FLAG)
+  338   1              {
+  339   2              UART4_CLEAR_TX_FLAG;
+  340   2                      busy[4] = 0;
+  341   2              }
+  342   1          if(UART4_GET_RX_FLAG)
+  343   1              {
+  344   2              UART4_CLEAR_RX_FLAG;
+  345   2      
+  346   2                      //接收数据寄存器为：S4BUF;
+  347   2                      if(wireless_module_uart_handler != NULL)
+  348   2                      {
+  349   3                              // 该函数为函数指针
+  350   3                              // 再初始化无线模块的时候，设置该函数地址
+  351   3                              wireless_module_uart_handler(S4BUF);
+  352   3                      }
+  353   2              }
+  354   1      }
+  355          
+  356          #define LED P52
+  357          void INT0_Isr() interrupt 0
+  358          {
+  359   1              LED = 0;        //点亮LED
+  360   1      }
+  361          void INT1_Isr() interrupt 2
+  362          {
+  363   1      
+  364   1      }
+  365          void INT2_Isr() interrupt 10
+  366          {
+  367   1              INT2_CLEAR_FLAG;  //清除中断标志
+  368   1      }
+  369          void INT3_Isr() interrupt 11
+  370          {
+  371   1              INT3_CLEAR_FLAG;  //清除中断标志
+  372   1      }
+  373          
+  374          void INT4_Isr() interrupt 16
+  375          {
+  376   1              INT4_CLEAR_FLAG;  //清除中断标志
+  377   1      }
+  378          
+  379          
+  380          
+  381          void TM2_Isr() interrupt 12
+  382          {
+C251 COMPILER V5.60.0,  isr                                                                23/06/25  18:43:05  PAGE 7   
+
+  383   1              TIM2_CLEAR_FLAG;  //清除中断标志
+  384   1      }
+  385          void TM3_Isr() interrupt 19
+  386          {
+  387   1              TIM3_CLEAR_FLAG; //清除中断标志
+  388   1              
+  389   1      }
+  390          
+  391          void TM4_Isr() interrupt 20
+  392          {
+  393   1              TIM4_CLEAR_FLAG; //清除中断标志
+  394   1      }
+  395          
+  396          //void  INT0_Isr()  interrupt 0;
+  397          //void  TM0_Isr()   interrupt 1;
+  398          //void  INT1_Isr()  interrupt 2;
+  399          //void  TM1_Isr()   interrupt 3;
+  400          //void  UART1_Isr() interrupt 4;
+  401          //void  ADC_Isr()   interrupt 5;
+  402          //void  LVD_Isr()   interrupt 6;
+  403          //void  PCA_Isr()   interrupt 7;
+  404          //void  UART2_Isr() interrupt 8;
+  405          //void  SPI_Isr()   interrupt 9;
+  406          //void  INT2_Isr()  interrupt 10;
+  407          //void  INT3_Isr()  interrupt 11;
+  408          //void  TM2_Isr()   interrupt 12;
+  409          //void  INT4_Isr()  interrupt 16;
+  410          //void  UART3_Isr() interrupt 17;
+  411          //void  UART4_Isr() interrupt 18;
+  412          //void  TM3_Isr()   interrupt 19;
+  413          //void  TM4_Isr()   interrupt 20;
+  414          //void  CMP_Isr()   interrupt 21;
+  415          //void  I2C_Isr()   interrupt 24;
+  416          //void  USB_Isr()   interrupt 25;
+  417          //void  PWM1_Isr()  interrupt 26;
+  418          //void  PWM2_Isr()  interrupt 27;
+
+
+Module Information          Static   Overlayable
+------------------------------------------------
+  code size            =      1687     ------
+  ecode size           =    ------     ------
+  data size            =    ------     ------
+  idata size           =    ------     ------
+  pdata size           =    ------     ------
+  xdata size           =        39     ------
+  xdata-const size     =    ------     ------
+  edata size           =    ------     ------
+  bit size             =         2     ------
+  ebit size            =    ------     ------
+  bitaddressable size  =    ------     ------
+  ebitaddressable size =    ------     ------
+  far data size        =    ------     ------
+  huge data size       =    ------     ------
+  const size           =    ------     ------
+  hconst size          =       103     ------
+End of Module Information.
+
+
+C251 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

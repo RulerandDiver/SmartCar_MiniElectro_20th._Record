@@ -1,0 +1,195 @@
+C251 COMPILER V5.60.0,  Key                                                                21/06/25  19:17:12  PAGE 1   
+
+
+C251 COMPILER V5.60.0, COMPILATION OF MODULE Key
+OBJECT MODULE PLACED IN .\Out_File\Key.obj
+COMPILER INVOKED BY: E:\Kust-Travel\Keil_v5\C251\BIN\C251.EXE ..\CODE\Key.c LARGE INTR2 FLOAT64 WARNINGLEVEL(3) OPTIMIZE
+                    -(0,SPEED) BROWSE INCDIR(..\..\Libraries\libraries;..\..\Libraries\seekfree_libraries;..\..\Libraries\seekfree_peripheral
+                    -;..\CODE;..\USER\inc;..\USER\src;..\..\Libraries\seekfree_components) DEBUG PRINT(.\Out_File\Key.lst) OBJECT(.\Out_File\
+                    -Key.obj) 
+
+stmt  level    source
+
+    1          #include "Key.h"
+    2          
+    3          bit Go_Flag=0;
+    4          
+    5          //KEY_UP,KEY_FUNC,KEY_DOWN,KEY_GO
+    6          Key_tt Key[4] = {0,0,0,0};
+    7          
+    8          //拨码开关状态变量
+    9          uint8 sw1_status;
+   10          uint8 sw2_status;
+   11          
+   12          void Key_Task()
+   13          {
+   14   1              static uint16 Voltage_Count=0;
+   15   1              static bit Voltage_Flag=0;
+   16   1              
+   17   1              
+   18   1              if(Key[0].flag == 1)
+   19   1              {
+   20   2                      Key[0].flag = 0;
+   21   2              }
+   22   1              
+   23   1              if(Key[1].flag == 1)
+   24   1              {
+   25   2                      Key[1].flag = 0;
+   26   2              }
+   27   1              
+   28   1              if(Key[2].flag == 1)
+   29   1              {
+   30   2                      Key[2].flag = 0;
+   31   2              }
+   32   1              
+   33   1              if(Key[3].flag == 1)
+   34   1              {
+   35   2                      Key[3].flag = 0;
+   36   2                      Go_Flag=1;
+   37   2              }
+   38   1              
+   39   1      #if 0
+                       //外侧上拨启动
+                       if(sw1_status)
+                       {
+                               Test_Wireless_Oscilloscope();//无线转串口调试PID                
+                       }
+                       if(sw2_status)
+                       {       
+                               //电压检测
+                               if(++Voltage_Count == 100) Voltage_Count=0,Voltage_Flag=1;//不能太快，会让单片机挂掉
+                               if(Voltage_Flag)
+                               {
+                                       Voltage_Flag=0;
+                                       Bat_Vol = ADC_Voltage();
+                               }
+                       }
+                       
+                       /* 冲出赛道保护 */
+C251 COMPILER V5.60.0,  Key                                                                21/06/25  19:17:12  PAGE 2   
+
+                       if(L<1 && L2<1 && R2<1 && R<1)run=0;
+                       else run=1;
+                       
+                       /* 速度设置 & 差速计算 */
+                       if(run == 1 && running == 1)  // 在赛道内
+                       {       
+                               Left_High_Speed  = 80;
+                               Right_High_Speed = 80   ;
+                       }
+                       if(run == 0 && running == 1) // 出赛道 进入保护,编码器计步代替延时，计步一段距离，若仍然丢线，则停车，后
+             -期补上，前期无需停车
+                       {
+                               Left_High_Speed  = 0;
+                               Right_High_Speed = 0;
+                               eleOut=0;               
+                       }
+               #endif
+   73   1      }
+   74          
+   75          void Key_Scan()
+   76          {
+   77   1              uint8 i;
+   78   1              Key[0].state = KEY_UP;
+   79   1              Key[1].state = KEY_FUNC;
+   80   1              Key[2].state = KEY_DOWN;
+   81   1              Key[3].state = KEY_GO;
+   82   1              
+   83   1              sw1_status = SW1_PIN;
+   84   1              sw2_status = SW2_PIN;
+   85   1              
+   86   1              for(i=0;i<4;i++)
+   87   1              {
+   88   2                      switch (Key[i].step)
+   89   2                      {
+   90   3                              //按键低电平有效，首次有效进入按下次数记录（消抖），因按键放在定时器中断内判断，因此消抖有效
+   91   3                              case 0:
+   92   3                              {
+   93   4                                      if (Key[i].state == 0)
+   94   4                                      {
+   95   5                                              Key[i].step = 1;
+   96   5                                      }
+   97   4                              }
+   98   3                              break;
+   99   3                              //如果仍然为低电平，则认为单击有效
+  100   3                              case 1:
+  101   3                              {
+  102   4                                      if (Key[i].state == 0)
+  103   4                                      {
+  104   5                                              Key[i].step = 2;
+  105   5                                              Key[i].flag = 1;
+  106   5                                      }
+  107   4                                      else
+  108   4                                      {
+  109   5                                              Key[i].step = 0;
+  110   5                                      }
+  111   4                              }
+  112   3                              break;
+  113   3                              //计步状态清零
+  114   3                              case 2:
+  115   3                              {
+  116   4                                      if (Key[i].state == 1)
+  117   4                                      {
+  118   5                                              Key[i].step = 0;
+  119   5                                      }
+  120   4                              }
+  121   3                              break;
+C251 COMPILER V5.60.0,  Key                                                                21/06/25  19:17:12  PAGE 3   
+
+  122   3                      }
+  123   2              }
+  124   1              
+  125   1              
+  126   1      }
+  127          
+  128          
+  129          
+  130          
+  131          
+  132          
+  133          
+  134          
+  135          
+  136          
+  137          
+  138          
+  139          
+  140          
+  141          
+  142          
+  143          
+  144          
+  145          
+  146          
+  147          
+  148          
+  149          
+  150          
+  151          
+  152          
+  153          
+  154          
+
+
+Module Information          Static   Overlayable
+------------------------------------------------
+  code size            =       418     ------
+  ecode size           =    ------     ------
+  data size            =    ------     ------
+  idata size           =    ------     ------
+  pdata size           =    ------     ------
+  xdata size           =        17     ------
+  xdata-const size     =    ------     ------
+  edata size           =    ------     ------
+  bit size             =         2     ------
+  ebit size            =    ------     ------
+  bitaddressable size  =    ------     ------
+  ebitaddressable size =    ------     ------
+  far data size        =    ------     ------
+  huge data size       =    ------     ------
+  const size           =    ------     ------
+  hconst size          =        24     ------
+End of Module Information.
+
+
+C251 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

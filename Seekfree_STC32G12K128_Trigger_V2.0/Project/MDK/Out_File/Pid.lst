@@ -1,0 +1,207 @@
+C251 COMPILER V5.60.0,  Pid                                                                21/06/25  19:17:12  PAGE 1   
+
+
+C251 COMPILER V5.60.0, COMPILATION OF MODULE Pid
+OBJECT MODULE PLACED IN .\Out_File\Pid.obj
+COMPILER INVOKED BY: E:\Kust-Travel\Keil_v5\C251\BIN\C251.EXE ..\CODE\Pid.c LARGE INTR2 FLOAT64 WARNINGLEVEL(3) OPTIMIZE
+                    -(0,SPEED) BROWSE INCDIR(..\..\Libraries\libraries;..\..\Libraries\seekfree_libraries;..\..\Libraries\seekfree_peripheral
+                    -;..\CODE;..\USER\inc;..\USER\src;..\..\Libraries\seekfree_components) DEBUG PRINT(.\Out_File\Pid.lst) OBJECT(.\Out_File\
+                    -Pid.obj) 
+
+stmt  level    source
+
+    1          #include "Pid.h"
+    2          
+    3          PID_tt LeftPID;//左轮速度PID
+    4          PID_tt RightPID;//右轮速度PID
+    5          PID_tt TurnPID;//转向环PID
+    6          PID_tt SpeedPID;
+    7          
+    8          float F_abs(float num)
+    9          {
+   10   1              return (num > 0 ? num : -num);
+   11   1      }
+   12          
+   13          int I_abs(int num)
+   14          {
+   15   1              return (num > 0 ? num : -num);
+   16   1      }       
+   17          
+   18          void Pid_Init(PID_tt *Pid,  float Kp, float Ki, float Kd, float Kf, float I_Limit, float O_Limit, float G
+             -Kd, float Kp2)
+   19          {
+   20   1              Pid -> Kp = Kp;
+   21   1              Pid -> Ki = Ki;
+   22   1              Pid -> Kd = Kd;
+   23   1              Pid -> Kf = Kf;
+   24   1              Pid -> GKd = GKd;
+   25   1              Pid -> Kp2 = Kp2;
+   26   1              
+   27   1              Pid -> I_Limit = I_Limit;
+   28   1              Pid -> O_Limit = O_Limit;
+   29   1              
+   30   1              Pid->Error = 0.0f;
+   31   1              Pid->LastError = 0.0f;
+   32   1              Pid->PreError = 0.0f;
+   33   1              Pid->IntError = 0.0f;
+   34   1              Pid->LastTarget = 0.0f;
+   35   1              
+   36   1              Pid->P_Out = 0.0f;
+   37   1              Pid->I_Out = 0.0f;
+   38   1              Pid->D_Out = 0.0f;
+   39   1              Pid->Output = 0.0f;
+   40   1              
+   41   1      }
+   42          
+   43          /**
+   44           * @brief 速度pid带前馈
+   45           */
+   46          float Pid_Inc_Ff(PID_tt* Pid, float Real, float Target)
+   47          {
+   48   1              Pid->Error = Target - Real;
+   49   1              Pid->IntError += Pid->Error;
+   50   1              
+   51   1              //积分限幅
+   52   1              if (Pid->IntError > Pid->I_Limit)
+   53   1              {
+   54   2                      Pid->IntError = Pid->I_Limit;
+   55   2              }
+C251 COMPILER V5.60.0,  Pid                                                                21/06/25  19:17:12  PAGE 2   
+
+   56   1              else if (Pid->IntError < -Pid->I_Limit)
+   57   1              {
+   58   2                      Pid->IntError = -Pid->I_Limit;
+   59   2              }
+   60   1              
+   61   1              //线性、积分、微分、前馈共同作用
+   62   1              Pid->P_Out = Pid->Kp * Pid->Error;
+   63   1              Pid->I_Out = Pid->Ki * Pid->IntError;
+   64   1              Pid->D_Out = Pid->Kd * (Pid->Error - Pid->LastError);
+   65   1              
+   66   1              Pid->Output = Pid->P_Out + Pid->I_Out + Pid->D_Out + Pid->Kf * (Target - Pid->LastTarget);
+   67   1              
+   68   1              Pid->LastError = Pid->Error;
+   69   1              Pid->LastTarget = Target;
+   70   1              
+   71   1              //输出限幅
+   72   1              if (Pid->Output > Pid->O_Limit)
+   73   1              {
+   74   2                      Pid->Output = Pid->O_Limit;
+   75   2              }
+   76   1              else if (Pid->Output < -Pid->O_Limit)
+   77   1              {
+   78   2                      Pid->Output = -Pid->O_Limit;
+   79   2              }
+   80   1              
+   81   1              return Pid->Output; 
+   82   1      }
+   83          
+   84          /**
+   85           * @brief 魔改位置式pid（加二次项）
+   86           */
+   87          float Pid_Pos_GyroZ(PID_tt* Pid, float position, float GyroZ)
+   88          {
+   89   1      //      pid->p_out = (pid->kp * position) + (pid->kp * pid->kp * position * myfabs(position));
+   90   1      //      pid->d_out = (pid->kd * (position - pid->lasterror) + (pid->kd * pid->kd * GyroZ));
+   91   1              Pid->P_Out = Pid->Kp * position;
+   92   1      //      Pid->d_out = (Pid->kd * (position - Pid->lasterror);
+   93   1              Pid->D_Out = Pid->Kd * GyroZ;
+   94   1      //      Pid->d_out = 0.8*Pid->kd*Pid->kd * GyroZ+0.2*Pid->kd * (position - Pid->lasterror);
+   95   1              
+   96   1              Pid->Output = Pid->P_Out + Pid->D_Out;
+   97   1              Pid->LastError = position;
+   98   1              
+   99   1              //输出限幅
+  100   1              if (Pid->Output > Pid->O_Limit)
+  101   1              {
+  102   2                      Pid->Output = Pid->O_Limit;
+  103   2              }
+  104   1              else if (Pid->Output < -Pid->O_Limit)
+  105   1              {
+  106   2                      Pid->Output = -Pid->O_Limit;
+  107   2              }
+  108   1              
+  109   1              return Pid->Output;
+  110   1      }
+  111          
+  112          #if 0
+               /**
+                * @brief 位置式 PD（用于转向控制）
+                */
+               float Pid_Position(PID_tt* Pid,double error)
+               {
+                       float Loc_out;
+                       
+                       Pid -> Error = error;
+                       
+C251 COMPILER V5.60.0,  Pid                                                                21/06/25  19:17:12  PAGE 3   
+
+                       Loc_out = Pid -> Error * Pid->Kp 
+                                   - mpu6050_gyro_z * Pid->GKd 
+                                       + Pid -> Error*absolute(Pid -> Error)*Pid->Kp2 
+                                       + (Pid -> Error - Pid -> LastError)* Pid -> Kd;
+                       
+                       Pid -> LastError = Pid -> Error; 
+                       return Loc_out;
+               }
+               
+               /**
+                * @brief 增量式 PID（用于左右轮电机闭环控制）
+                */
+               float Pid_Velocity(PID_tt* Pid, float ActualSpeed, float SetSpeed)
+               {
+                       float Increase;  // 单次PID输出
+               
+               
+                       Pid->Error = SetSpeed - ActualSpeed;  // 当前误差 = 目标值 - 实际值
+               
+                       Increase = Pid->Kp * (Pid->Error - Pid->LastError)
+                                        + Pid->Ki * Pid->Error
+                                        + Pid->Kd * (Pid->Error - 2*Pid->LastError + Pid->PreError);
+               
+                       Pid->PreError = Pid->LastError;  // 让上上次等于上次
+                       Pid->LastError = Pid->Error;  // 让上次等于这次
+               
+                       return Increase;
+               }
+               #endif
+  151          
+  152          /**
+  153           * @brief PID复位
+  154           */
+  155          void Pid_Clean(PID_tt* Pid)
+  156          {
+  157   1              Pid->LastError = 0;
+  158   1              Pid->IntError = 0;
+  159   1              Pid->PreError = 0;
+  160   1              Pid->Output = 0;
+  161   1      }
+  162          
+  163          
+  164          
+  165          
+  166          
+
+
+Module Information          Static   Overlayable
+------------------------------------------------
+  code size            =      2082     ------
+  ecode size           =    ------     ------
+  data size            =    ------     ------
+  idata size           =    ------     ------
+  pdata size           =    ------     ------
+  xdata size           =       342     ------
+  xdata-const size     =    ------     ------
+  edata size           =    ------     ------
+  bit size             =    ------     ------
+  ebit size            =    ------     ------
+  bitaddressable size  =    ------     ------
+  ebitaddressable size =    ------     ------
+  far data size        =    ------     ------
+  huge data size       =    ------     ------
+  const size           =    ------     ------
+  hconst size          =    ------     ------
+End of Module Information.
+
+
+C251 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

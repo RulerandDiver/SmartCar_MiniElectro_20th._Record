@@ -1,0 +1,883 @@
+C251 COMPILER V5.60.0,  Elec                                                               21/06/25  19:17:12  PAGE 1   
+
+
+C251 COMPILER V5.60.0, COMPILATION OF MODULE Elec
+OBJECT MODULE PLACED IN .\Out_File\Elec.obj
+COMPILER INVOKED BY: E:\Kust-Travel\Keil_v5\C251\BIN\C251.EXE ..\CODE\Elec.c LARGE INTR2 FLOAT64 WARNINGLEVEL(3) OPTIMIZ
+                    -E(0,SPEED) BROWSE INCDIR(..\..\Libraries\libraries;..\..\Libraries\seekfree_libraries;..\..\Libraries\seekfree_periphera
+                    -l;..\CODE;..\USER\inc;..\USER\src;..\..\Libraries\seekfree_components) DEBUG PRINT(.\Out_File\Elec.lst) OBJECT(.\Out_Fil
+                    -e\Elec.obj) 
+
+stmt  level    source
+
+    1          #include "Elec.h"
+    2          
+    3          // ÂË²¨ºóÊý¾Ý - Ê¹ÓÃ¶þÎ¬Êý×éÐÎÊ½
+    4          // µÚÒ»Î¬±íÊ¾µç¸Ð±àºÅ£º0-HL, 1-VL, 2-HML, 3-HC, 4-HMR, 5-VR, 6-HR
+    5          //0-HL, 1-VL, 2-HC, 3-VR, 4-HR
+    6          // µÚ¶þÎ¬±£Áô£¬¿ÉÓÃÓÚ´æ´¢ÀúÊ·Êý¾Ý
+    7          
+    8          
+    9          
+   10          // ¶¨ÒåÈ«¾ÖÈ¨ÖØÅäÖÃ£¬Ö»±£ÁôËÄÖÖ»ù±¾ÔªËØ
+   11          //Íâ²àµç¸ÐÈ¨ÖØ(HLºÍHR),ÖÐÐÄµç¸ÐÈ¨ÖØ(HC),×ÝÏòµç¸ÐÈ¨ÖØ(VLºÍVR),ÂË²¨ÏµÊý,ÔÊÐíµÄ×î´ó±ä»¯ÂÊ,Ãû×Ö
+   12          TrackWeights track_weights[4] = {
+   13              // ÆÕÍ¨Ö±µÀ
+   14          
+   15              {0.20f, 0.30f, 0.20f, 0.70f, 30, "Ö±µÀ"},
+   16              
+   17              // Ö±½ÇÍäµÀ
+   18              {0.25f, 0.35f, 0.40f, 1.00f, 50, "Ö±½ÇÍäµÀ"},
+   19              
+   20              // Ê®×ÖÔ²»·
+   21              {0.35f, 0.20f, 0.15f, 0.90f, 40, "Ê®×ÖÔ²»·"},
+   22              
+   23              // »·µº
+   24              {0.35f, 0.10f, 0.25f, 1.00f, 50, "»·µº"}
+   25          };
+   26          
+   27          uint16 adc_fliter_data[SENSOR_COUNT][HISTORY_COUNT] = {0}; //ÂË²¨ºóµÄÖµ
+   28          float result[SENSOR_COUNT] = {0};               //µç´æ´¢Ã¿¸öµç¸ÐÂË²¨ºóµÄ×îÖÕ½á¹ûÖµ£¨ÉÐÎ´¹éÒ»»¯£©£¬ÊÇÁ¬½ÓÂË²¨´¦ÀíºÍ¹éÒ»
+             -»¯´¦ÀíµÄÖÐ¼ä±äÁ¿
+   29          uint16 sum[SENSOR_COUNT][HISTORY_COUNT] = {0};          //ÀÛ¼ÓµÄºÍ
+   30          
+   31          
+   32          // ¹éÒ»»¯Êý¾Ý - ¸ÄÎªÊý×éÐÎÊ½
+   33          float normalized_data[SENSOR_COUNT] = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f};  // ¹éÒ»»¯ºóµÄµç¸ÐÊý¾ÝÊý×é
+   34          
+   35          // ´æ´¢Ã¿¸öµç¸ÐµÄ×î´ó×îÐ¡Öµ£¬ÓÃÓÚ¶¯Ì¬Ð£×¼ - ¸ÄÎªÊý×éÐÎÊ½
+   36          // uint16 min_value[SENSOR_COUNT] = {0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF};  // Ã¿¸öµç¸
+             -ÐµÄ×îÐ¡Öµ
+   37          // uint16 max_value[SENSOR_COUNT] = {0, 0, 0, 0, 0, 0, 0};  // Ã¿¸öµç¸ÐµÄ×î´óÖµ
+   38          uint16 min_value[SENSOR_COUNT] = {12,0,0,0,5};  // Ã¿¸öµç¸ÐµÄ×îÐ¡Öµ
+   39          uint16 max_value[SENSOR_COUNT] = {890,890,888,890,890};  // Ã¿¸öµç¸ÐµÄ×î´óÖµ
+   40          
+   41          // µç¸ÐÎ»ÖÃ¼ÆËãÏà¹Ø±äÁ¿
+   42          float signal_strength_value = 0;   // ÐÅºÅÇ¿¶ÈÖ¸±ê
+   43          int16 position = 0;
+   44          float filter_param = 0.4f;   // ÂË²¨ÏµÊý£¬¿Éµ÷ Ô½´óÔ½ÁéÃô
+   45          
+   46          
+   47          // ÈüµÀÐÅÏ¢Ïà¹Ø±êÖ¾Î»
+   48          uint8 track_type = 0;         // ÈüµÀÀàÐÍ£º0-ÆÕÍ¨£¬1-Ö±½ÇÍäµÀ£¬2-Ê®×ÖÔ²»·£¬3-»·µº
+   49          uint8 track_type_last = 0;         // ÈüµÀÀàÐÍ£º0-ÆÕÍ¨£¬1-Ö±½ÇÍäµÀ£¬2-Ê®×ÖÔ²»·£¬3-»·µº
+   50          
+   51          uint8 track_type_zj = 0;          //1-×óÖ±½Ç£¬2-ÓÒÖ±½Ç
+   52          uint8 track_route = 0;            //1-ÓÒ»·£¬2-×ó»·
+   53          uint8 track_route_status = 0; //1-Èë»·£¬2-»·ÖÐ£¬3-³ö»·
+   54          uint8 track_ten_flag = 1;       //Ê®×ÖÔ²»·£º0±íÊ¾µ½¼ÆÊ±0.5sÔÙ¿ªÊ¼ÅÐ¶Ï£¬1-¿ÉÒÔ¿ªÊ¼ÅÐ¶Ï
+C251 COMPILER V5.60.0,  Elec                                                               21/06/25  19:17:12  PAGE 2   
+
+   55          uint8 ten_change_flag = 0; //1±íÊ¾0.5ºótrack_ten_flag=1
+   56          
+   57          uint8 protection_flag = 0;// µç´Å±£»¤Âß¼­±äÁ¿,0±íÊ¾Î´±£»¤£¬1±íÊ¾±£»¤
+   58          
+   59          
+   60          uint8 speed_count = 0;
+   61          
+   62          //-----------------------------------------------------------------------------
+   63          // @brief       µç´Å´«¸ÐÆ÷³õÊ¼»¯
+   64          // @param   ÎÞ
+   65          // @return  ÎÞ
+   66          // @author  ZP
+   67          // Sample usage: electromagnetic_init();
+   68          //-----------------------------------------------------------------------------
+   69          void electromagnetic_init(void)
+   70          {
+   71   1         uint8 i = 0, j = 0;
+   72   1      
+   73   1         adc_init(ADC_HL, 0);   // ×ó²àºáÏòµç¸Ð
+   74   1         adc_init(ADC_VL, 0);   // ×ó²à×ÝÏòµç¸Ð
+   75   1         adc_init(ADC_HC, 0);   // ÖÐ¼äºáÏòµç¸Ð
+   76   1         adc_init(ADC_VR, 0);   // ÓÒ²à×ÝÏòµç¸Ð
+   77   1         adc_init(ADC_HR, 0);   // ÓÒ²àºáÏòµç¸Ð
+   78   1         
+   79   1         // ³õÊ¼»¯¶þÎ¬Êý×é
+   80   1         for(i = 0; i < SENSOR_COUNT; i++)
+   81   1         {
+   82   2             for(j = 0; j < HISTORY_COUNT; j++)
+   83   2             {
+   84   3                 adc_fliter_data[i][j] = 0;
+   85   3                 sum[i][j] = 0;
+   86   3             }
+   87   2             normalized_data[i] = 0.0f;  // ³õÊ¼»¯¹éÒ»»¯Êý¾ÝÊý×é
+   88   2         }
+   89   1      }
+   90          
+   91          //-----------------------------------------------------------------------------
+   92          // @brief       µÃµ½adcµÄÖµ
+   93          // @param   ²âµÄADC/µç¸ÐÐòºÅ
+   94          // @return  ²â³öµÄadcÖµ
+   95          // @author  ZP
+   96          // Sample usage: get_adc(1)
+   97          //-----------------------------------------------------------------------------
+   98          uint16 get_adc(uint16 i)
+   99          {
+  100   1              switch(i){
+  101   2                      case 0:
+  102   2                              return adc_once(ADC_HL, ADC_10BIT);  //ADC_10BITÊÇµç´ÅÑ°¼£×î¼Ñ·Ö±æÂÊ
+  103   2                      case 1:
+  104   2                              return adc_once(ADC_VL, ADC_10BIT);
+  105   2                      case 2:
+  106   2                              return adc_once(ADC_HC, ADC_10BIT);
+  107   2                      case 3:
+  108   2                              return adc_once(ADC_VR, ADC_10BIT); 
+  109   2                      case 4:
+  110   2                              return adc_once(ADC_HR, ADC_10BIT);
+  111   2                      default:
+  112   2                              return 0;
+  113   2              }
+  114   1      }
+  115          
+  116          //-----------------------------------------------------------------------------
+  117          // @brief       µÝÍÆ¾ùÖµÂË²¨
+  118          // @param   ÎÞ
+  119          // @return  ÎÞ
+  120          // @author  zp
+C251 COMPILER V5.60.0,  Elec                                                               21/06/25  19:17:12  PAGE 3   
+
+  121          // Sample usage: average_filter();
+  122          // ÊµÊ±Æ½»¬ADC²ÉÑùÊý¾Ý£¬½µµÍËæ»úÔëÉù¸ÉÈÅ,
+  123          //-----------------------------------------------------------------------------
+  124          // µÝÍÆ¾ùÖµÂË²¨Ïà¹Ø²ÎÊý
+  125          static uint8 times = HISTORY_COUNT;  // ÂË²¨´ÎÊý
+  126          static uint8 i_num = SENSOR_COUNT;  // µç¸ÐÊýÁ¿
+  127          
+  128          void average_filter(void)
+  129          {
+  130   1          static uint16 filter_index = 0;  // µÝÍÆ´ÎÊý¼ÆÊýÆ÷
+  131   1          static uint8 is_initialized = 0; // ³õÊ¼»¯±êÖ¾,Ö»ÔÚµÚÒ»´Îµ÷ÓÃÊ±½øÐÐ¶à´Î²ÉÑù,ºóÐøµ÷ÓÃÊ±Ê¹ÓÃÕæÕýµÄµÝÍÆË
+             -ã·¨   
+  132   1          uint16 a = 0, b = 0;
+  133   1          
+  134   1          // ¼ì²éÊÇ·ñÐèÒª³õÊ¼»¯
+  135   1          if (!is_initialized)
+  136   1          {
+  137   2              // ÖØÖÃÀÛ¼ÓÆ÷
+  138   2              for(a = 0; a < i_num; a++)
+  139   2              {
+  140   3                  sum[a][0] = 0;
+  141   3              }
+  142   2              
+  143   2              // Ç°¼¸´Î²É¼¯£¬ÀÛ»ý×ã¹»µÄÊý¾Ý
+  144   2              for(filter_index = 0; filter_index < times; filter_index++)
+  145   2              {
+  146   3                  for(b = 0; b < i_num; b++)
+  147   3                  {
+  148   4                      sum[b][0] += get_adc(b);  // ²É¼¯Ò»´ÎADC²¢ÀÛ¼Ó
+  149   4                  }
+  150   3                  delay_us(5); // Ìí¼Ó¶ÌÔÝÑÓÊ±Ìá¸ß²ÉÑùÎÈ¶¨ÐÔ
+  151   3              }
+  152   2              
+  153   2              // ¼ÆËã³õÊ¼Æ½¾ùÖµ
+  154   2              for(a = 0; a < i_num; a++)
+  155   2              {
+  156   3                  adc_fliter_data[a][0] = sum[a][0] / times;  // ÇóÆ½¾ù
+  157   3                  result[a] = adc_fliter_data[a][0];
+  158   3              }
+  159   2              
+  160   2              is_initialized = 1; // ±ê¼Ç³õÊ¼»¯Íê³É
+  161   2          }
+  162   1          else  // ÒÑ³õÊ¼»¯£¬Ö´ÐÐµÝÍÆ¾ùÖµÂË²¨
+  163   1          {
+  164   2              for(a = 0; a < i_num; a++)
+  165   2              {
+  166   3                  // µÝÍÆ¾ùÖµÂË²¨ºËÐÄËã·¨£º¼õÈ¥Æ½¾ùÖµ£¬¼ÓÉÏÐÂÖµ£¬ÖØÐÂ¼ÆËãÆ½¾ùÖµ
+  167   3                  sum[a][0] -= (sum[a][0] / times);         // Ã¿´ÎÈ¥³ýÆ½¾ùÖµµÄ¹±Ï×
+  168   3                  sum[a][0] += get_adc(a);              // ¼ÓÉÏÐÂÖµ
+  169   3                  adc_fliter_data[a][0] = (sum[a][0] / times);  // ÇóÐÂµÄÆ½¾ùÖµ
+  170   3                  result[a] = adc_fliter_data[a][0];      // ±£´æ½á¹û
+  171   3              }
+  172   2          }
+  173   1      }
+  174          
+  175          
+  176          //-----------------------------------------------------------------------------
+  177          // @brief       ÖÐÎ»ÖµÂË²¨£¬½«Ã¿¸öµç¸ÐµÄÖÐÎ»Êý×÷Îª½á¹û
+  178          // @param   ÎÞ
+  179          // @return  ÎÞ
+  180          // @author  ZP
+  181          // Sample usage: mid_filter();
+  182          // Ïû³ýÂö³å¸ÉÈÅ£¬Ìá¸ßÐÅºÅÎÈ¶¨ÐÔ,Óë¾ùÖµÂË²¨ÅäºÏÐÎ³ÉÁ½¼¶ÂË²¨¼Ü¹¹
+  183          //-----------------------------------------------------------------------------
+  184          static uint8 mid_initialized = 0;  // ÖÐÎ»ÖµÂË²¨³õÊ¼»¯±êÖ¾
+  185          static uint16 sample_count = 0;    // ²ÉÑù¼ÆÊýÆ÷
+C251 COMPILER V5.60.0,  Elec                                                               21/06/25  19:17:12  PAGE 4   
+
+  186          
+  187          void mid_filter(void)
+  188          {
+  189   1          uint16 temp = 0, a = 0, t = 0;
+  190   1          uint16 mid_index = 0;  //ÖÐÎ»Êý
+  191   1              uint16 i = 0; //ÓÃÓÚÑ­»·
+  192   1          // ´´½¨ÁÙÊ±Êý×éÓÃÓÚÅÅÐò£¬±ÜÃâÐÞ¸ÄÔ­Ê¼Êý¾Ý
+  193   1          uint16 sort_array[HISTORY_COUNT];  // Ê¹ÓÃºê¶¨ÒåµÄ³£Á¿¶ø²»ÊÇ±äÁ¿
+  194   1              
+  195   1          // µ÷ÓÃ¾ùÖµÂË²¨»ñÈ¡ÐÂµÄ²ÉÑùÖµ
+  196   1          average_filter();
+  197   1          
+  198   1          // Èç¹ûÉÐÎ´³õÊ¼»¯Íê³É
+  199   1          if (!mid_initialized)
+  200   1          {
+  201   2              // ½«µ±Ç°ÂË²¨½á¹û´æÈëÀúÊ·Êý×é
+  202   2              for(a = 0; a < i_num; a++)
+  203   2              {
+  204   3                  adc_fliter_data[a][sample_count] = adc_fliter_data[a][0];
+  205   3                  result[a] = adc_fliter_data[a][0];
+  206   3              }
+  207   2              
+  208   2              sample_count++;
+  209   2              
+  210   2              // µ±²É¼¯µ½×ã¹»Ñù±¾Ê±£¬±ê¼Ç³õÊ¼»¯Íê³É
+  211   2              if (sample_count >= times)
+  212   2              {
+  213   3                  mid_initialized = 1;
+  214   3                  sample_count = 0;  // ÖØÖÃ¼ÆÊýÆ÷ÓÃÓÚÑ­»·»º³å
+  215   3              }
+  216   2          }
+  217   1          else  // ÒÑ³õÊ¼»¯£¬Ö´ÐÐÖÐÎ»ÖµÂË²¨
+  218   1          {
+  219   2              // ¸üÐÂÀúÊ·Êý¾ÝÊý×é
+  220   2              for(a = 0; a < i_num; a++)
+  221   2              {
+  222   3                  adc_fliter_data[a][sample_count] = adc_fliter_data[a][0];
+  223   3              }
+  224   2              
+  225   2              // ¸üÐÂÑ­»·»º³åÇøË÷Òý
+  226   2              sample_count = (sample_count + 1) % times;
+  227   2              
+  228   2              // ¶ÔÃ¿¸öµç¸ÐÍ¨µÀ½øÐÐ´¦Àí
+  229   2              for(a = 0; a < i_num; a++)
+  230   2              {
+  231   3                  for(t = 0; t < times; t++)
+  232   3                  {
+  233   4                      sort_array[t] = adc_fliter_data[a][t];
+  234   4                  }
+  235   3                  
+  236   3                  // Ã°ÅÝÅÅÐò
+  237   3                  for(i = 0; i < times-1; i++)
+  238   3                  {
+  239   4                      for(t = 0; t < times-i-1; t++)
+  240   4                      {
+  241   5                          if(sort_array[t] > sort_array[t+1])
+  242   5                          {
+  243   6                              temp = sort_array[t];
+  244   6                              sort_array[t] = sort_array[t+1];
+  245   6                              sort_array[t+1] = temp;
+  246   6                          }
+  247   5                      }
+  248   4                  }
+  249   3                  
+  250   3                  // ¼ÆËãÖÐÎ»ÊýË÷Òý
+  251   3                  mid_index = times / 2;  // 5 / 2 = 2  ,sort_array[2]ÊÇµÚÈý¸öÊý¼´ÖÐÎ»Êý
+C251 COMPILER V5.60.0,  Elec                                                               21/06/25  19:17:12  PAGE 5   
+
+  252   3                  
+  253   3                  // È¡ÖÐÎ»Êý×÷Îª½á¹û
+  254   3                  result[a] = sort_array[mid_index];
+  255   3              }
+  256   2          }
+  257   1      }
+  258          
+  259          
+  260          //-----------------------------------------------------------------------------
+  261          // @brief       ¸üÐÂÃ¿¸öµç¸ÐµÄ×î´ó×îÐ¡Öµ£¬ÓÃÓÚ¶¯Ì¬Ð£×¼
+  262          // @param   ÎÞ
+  263          // @return  ÎÞ
+  264          // @author  ZP
+  265          // Sample usage: update_min_max_values();
+  266          // ×ÔÊÊÓ¦»·¾³±ä»¯£¬±£³Ö¹éÒ»»¯ÓÐÐ§ÐÔ,·ÀÖ¹¼«¶ËÖµ"ËøËÀ"ÏµÍ³,ºöÂÔ<10µÄÔëÉùÊý¾Ý,Ç¿ÖÆ×îÐ¡20µÄ²îÖµ£¬±ÜÃâ³ýÁã´íÎó
+  267          //-----------------------------------------------------------------------------
+  268          void update_min_max_values(void)
+  269          {
+  270   1          uint8 i;
+  271   1          static uint16 update_counter = 0;
+  272   1          
+  273   1          // ¶¨ÆÚÇáÎ¢Ë¥¼õ×î´ó×îÐ¡Öµ£¬Ê¹ÏµÍ³ÄÜÊÊÓ¦»·¾³±ä»¯
+  274   1          update_counter++;
+  275   1          if(update_counter >= 1000)  // Ã¿1000´Îµ÷ÓÃÖ´ÐÐÒ»´ÎË¥¼õ
+  276   1          {
+  277   2              update_counter = 0;
+  278   2              
+  279   2              // ×îÐ¡ÖµÂÔÎ¢Ôö¼Ó£¬×î´óÖµÂÔÎ¢¼õÉÙ£¬ÐÎ³É»ºÂýË¥¼õ
+  280   2              for(i = 0; i < SENSOR_COUNT; i++)
+  281   2              {
+  282   3                  // ×îÐ¡ÖµÏòÉÏË¥¼õ£¨Ôö¼Ó1%£©
+  283   3                  min_value[i] += min_value[i] / 100;
+  284   3                  
+  285   3                  // ×î´óÖµÏòÏÂË¥¼õ£¨¼õÉÙ1%£©
+  286   3                  if(max_value[i] > min_value[i])  // È·±£×î´óÖµÊ¼ÖÕ´óÓÚ×îÐ¡Öµ
+  287   3                      max_value[i] -= max_value[i] / 100;
+  288   3              }
+  289   2          }
+  290   1          
+  291   1          // ¶¯Ì¬¸üÐÂÃ¿¸öµç¸ÐµÄ×îÐ¡ÖµºÍ×î´óÖµ
+  292   1          for(i = 0; i < SENSOR_COUNT; i++)
+  293   1          {
+  294   2              // Òì³£Öµ¼ì²â - Èç¹û¶ÁÊýÒì³£´ó»òÒì³£Ð¡£¬¿ÉÄÜÊÇ´«¸ÐÆ÷¹ÊÕÏ£¬²»¸üÐÂ
+  295   2              if(result[i] > 4000 || result[i] < 2)
+  296   2                  continue;
+  297   2                  
+  298   2              // ¸üÐÂ×îÐ¡Öµ£¨ºöÂÔ¹ýÐ¡µÄÖµ£¬¿ÉÄÜÊÇÔëÉù£©
+  299   2              if(result[i] < min_value[i] && result[i] > 1) 
+  300   2                  min_value[i] = result[i];
+  301   2              
+  302   2              // ¸üÐÂ×î´óÖµ
+  303   2              if(result[i] > max_value[i]) 
+  304   2                  max_value[i] = result[i];
+  305   2          }
+  306   1          
+  307   1          // È·±£×î´ó×îÐ¡ÖµÖ®¼äÓÐ×ã¹»²î¾à£¬±ÜÃâ³ýÒÔ½Ó½ü0µÄÖµ
+  308   1          for(i = 0; i < SENSOR_COUNT; i++)
+  309   1          {
+  310   2              if(max_value[i] - min_value[i] < 20)
+  311   2              {
+  312   3                  // Èç¹û²î¾àÌ«Ð¡£¬Ç¿ÖÆÉèÖÃÒ»¸öºÏÀí²î¾à
+  313   3                  max_value[i] = min_value[i] + 20;
+  314   3              }
+  315   2          }
+  316   1      }
+  317          
+C251 COMPILER V5.60.0,  Elec                                                               21/06/25  19:17:12  PAGE 6   
+
+  318          //-----------------------------------------------------------------------------
+  319          // @brief       ¹éÒ»»¯µç¸ÐÊý¾Ý
+  320          // @param   ÎÞ
+  321          // @return  ÎÞ
+  322          // @author  ZP
+  323          // Sample usage: normalize_sensors();
+  324          //-----------------------------------------------------------------------------
+  325          void normalize_sensors(void)
+  326          {
+  327   1          uint8 i;
+  328   1          // ¿ÉÑ¡£º¶Ô¹éÒ»»¯ºóµÄÊý¾Ý½øÐÐÆ½»¬´¦Àí£¬¼õÉÙ¶¶¶¯
+  329   1          static float last_normalized[SENSOR_COUNT] = {0};
+  330   1          // Æ½»¬Òò×Ó£¬¿Éµ÷Õû£ºÖµÔ½´ó£¬ÏìÓ¦Ô½¿ìµ«¶¶¶¯Ô½Ã÷ÏÔ£¬ÖµÔ½Ð¡£¬ÏìÓ¦Ô½Âýµ«¸üÆ½ÎÈ
+  331   1          float smooth_factor = 0.7f; // ½¨ÒéÔÚ0.6-0.8·¶Î§ÄÚµ÷Õû£¬¸ù¾ÝÐ¡³µÊµ¼Ê±íÏÖÎ¢µ÷    // Ê×ÏÈ¸üÐÂ×î´ó×îÐ¡Öµ
+  332   1      
+  333   1          // update_min_max_values();
+  334   1          
+  335   1          // ¶ÔÃ¿¸öµç¸Ð½øÐÐ¹éÒ»»¯´¦Àí
+  336   1          for(i = 0; i < SENSOR_COUNT; i++)
+  337   1          {
+  338   2              // ¼ì²é×î´ó×îÐ¡Öµ²îÒìÊÇ·ñ×ã¹»´ó£¬·ÀÖ¹³ýÒÔ½Ó½ü0µÄÖµ
+  339   2              if(max_value[i] - min_value[i] > 20) 
+  340   2              {
+  341   3                  // ±ê×¼ÏßÐÔ¹éÒ»»¯£¬½«ÖµÓ³Éäµ½0-100·¶Î§£¨³ËÒÔ100·½±ãºóÐøÊ¹ÓÃ£©
+  342   3                  normalized_data[i] = (float)(result[i] - min_value[i]) * 100.0f / (max_value[i] - min_value[i
+             -]);
+  343   3                  
+  344   3                  // ¿ÉÑ¡£ºÊ¹ÓÃÆ½·½¸ù·ÇÏßÐÔÓ³Éä£¬ÔöÇ¿Ð¡ÐÅºÅÏìÓ¦(Èç¹û·¢ÏÖÐ¡³µ¶ÔÐ¡Æ«²î·´Ó¦²»Ãô¸Ð£¬¿ÉÒÔÈ¡ÏûÆ½·½¸ùÓ
+             -³ÉäµÄ×¢ÊÍ)
+  345   3                  // normalized_data[i] = sqrtf(normalized_data[i] / 100.0f) * 100.0f;
+  346   3              }
+  347   2              else 
+  348   2              {
+  349   3                  // Èç¹û×î´ó×îÐ¡Öµ²îÒìÌ«Ð¡£¬¿ÉÄÜÊÇ´«¸ÐÆ÷¹ÊÕÏ»òÎ´ÕýÈ·³õÊ¼»¯
+  350   3                  // Ê¹ÓÃÔ­Ê¼ÖµµÄÏà¶Ô±ÈÀý×÷ÎªÌæ´ú£¬Ò²³ËÒÔ100±£³ÖÒ»ÖÂÐÔ
+  351   3                  normalized_data[i] = (float)result[i] / 36.0f;  // ¼ÙÉèADC×î´óÖµÎª3600£¬¹éÒ»»¯µ½0-100
+  352   3              }
+  353   2              
+  354   2              // ÏÞÖÆ·¶Î§ÔÚ0-100Ö®¼ä
+  355   2              if(normalized_data[i] > 100.0f) normalized_data[i] = 100.0f;
+  356   2              if(normalized_data[i] < 0.0f) normalized_data[i] = 0.0f;
+  357   2          }
+  358   1          
+  359   1              //Ð¡Êý²¿·Ö²úÉú×ÔÕâÀï
+  360   1          for(i = 0; i < SENSOR_COUNT; i++)
+  361   1          {
+  362   2              // µÍÍ¨ÂË²¨Æ½»¬´¦Àí
+  363   2              normalized_data[i] = normalized_data[i] * smooth_factor + 
+  364   2                                  last_normalized[i] * (1.0f - smooth_factor);
+  365   2              
+  366   2              // ±£´æµ±Ç°ÖµÓÃÓÚÏÂ´ÎÆ½»¬
+  367   2              last_normalized[i] = normalized_data[i];
+  368   2          }
+  369   1      }
+  370          
+  371          //-----------------------------------------------------------------------------
+  372          // @brief       ¸Ä½ø°æ¼ÆËãÎ»ÖÃ£¨Ê¹ÓÃ×ÔÊÊÓ¦²î±ÈºÍ¼ÓÈ¨·½·¨£©
+  373          // @param   ÎÞ
+  374          // @return  ¼ÆËãµÃµ½µÄÎ»ÖÃÖµ£¬·¶Î§-100µ½100
+  375          // @author  ZP
+  376          // Sample usage: position = calculate_position_improved();
+  377          // µç´Å¸ÐÓ¦¾ö²ß
+  378          //-----------------------------------------------------------------------------
+  379          
+  380          int16 calculate_position_improved(void)
+  381          {
+C251 COMPILER V5.60.0,  Elec                                                               21/06/25  19:17:12  PAGE 7   
+
+  382   1          // ÔÚº¯Êý¿ªÊ¼´¦ÉùÃ÷ËùÓÐ±äÁ¿
+  383   1          float weight_outer = 0.15f;   // Íâ²àµç¸ÐÈ¨ÖØ(HLºÍHR)
+  384   1          float weight_vertical = 0.15f; // ×ÝÏòµç¸ÐÈ¨ÖØ(VLºÍVR)
+  385   1          float weight_center = 0.0f;  // ÖÐÐÄµç¸ÐÈ¨ÖØ(HC)(Ã»ÓÃÉÏ)
+  386   1          
+  387   1          float diff_outer = 0;        // Íâ²àµç¸Ð²îÖµ
+  388   1          float diff_vertical = 0;     // ×ÝÏòµç¸Ð²îÖµ
+  389   1          
+  390   1          float sum_outer = 0;         // Íâ²àµç¸ÐºÍÖµ
+  391   1          float sum_vertical = 0;      // ×ÝÏòµç¸ÐºÍÖµ
+  392   1          float center_value = 0;      // ÖÐ¼äµç¸ÐÖµ
+  393   1          
+  394   1          float ratio_outer = 0;       // Íâ²àµç¸Ð²î±ÈºÍ
+  395   1          float ratio_vertical = 0;    // ×ÝÏòµç¸Ð²î±ÈºÍ
+  396   1          
+  397   1          float signal_strength = 0;   // ÐÅºÅÇ¿¶ÈÖ¸±ê
+  398   1          static int16 last_pos = 0;   // ÉÏÒ»´ÎÎ»ÖÃÖµ£¬ÓÃÓÚÂË²¨
+  399   1          static int16 very_last_pos = 0;  // ÉÏÉÏ´ÎÎ»ÖÃÖµ£¬ÓÃÓÚ¶þ´ÎÂË²¨
+  400   1          static int16 very_very_last_pos = 0;  // ÉÏÉÏÉÏ´ÎÎ»ÖÃÖµ£¬ÓÃÓÚÈý´ÎÂË²¨
+  401   1          int16 pos = 0;               // µ±Ç°¼ÆËãµÃµ½µÄÎ»ÖÃÖµ
+  402   1          static int16 max_change_rate = 8; // ÔÊÐíµÄ×î´ó±ä»¯ÂÊ£¬Ô½´óÔ½ÁéÃô
+  403   1          int16 position_change = 0;   // Î»ÖÃ±ä»¯Á¿
+  404   1              
+  405   1              
+  406   1              
+  407   1              
+  408   1              // Î»ÖÃ¼ÆËã£¨°üº¬ÖÐÐÄµç¸ÐµÄ¹±Ï×£©
+  409   1          // ÖÐÐÄµç¸ÐÔ½´ó£¬Î»ÖÃÔ½½Ó½üÖÐÐÄÏß£¬ÕâÀïÖ±½Ó½«ÖÐÐÄµç¸Ð×÷ÎªÎ»ÖÃÐÞÕýÒò×Ó
+  410   1          float center_correction = 0;
+  411   1          
+  412   1          // ¼ÆËã¸÷¶Ôµç¸ÐµÄ ²îÖµ ºÍ ºÍÖµ
+  413   1          diff_outer = normalized_data[SENSOR_HL] - normalized_data[SENSOR_HR];
+  414   1          sum_outer = normalized_data[SENSOR_HL] + normalized_data[SENSOR_HR];
+  415   1          
+  416   1          diff_vertical = normalized_data[SENSOR_VL] - normalized_data[SENSOR_VR];
+  417   1          sum_vertical = normalized_data[SENSOR_VL] + normalized_data[SENSOR_VR];
+  418   1          
+  419   1          // »ñÈ¡ÖÐ¼äµç¸ÐÖµ
+  420   1          center_value = normalized_data[SENSOR_HC];
+  421   1          
+  422   1          // ¼ÆËãÐÅºÅÇ¿¶ÈÖ¸±ê -- ËùÓÐµç¸ÐÆ½¾ùÖµ
+  423   1          signal_strength = (sum_outer + sum_vertical + center_value) / 5.0f;
+  424   1          signal_strength_value = signal_strength; // ±£´æÐÅºÅÇ¿¶ÈÖ¸±ê
+  425   1      
+  426   1      
+  427   1          // ¼ÆËã²î±ÈºÍ£¬Ê¹ÓÃÆ½»¬¹ý¶Éº¯Êý´úÌæÓ²ãÐÖµ£¬±ÜÃâÔÚÁÙ½çÖµ¸½½ü²úÉúÌø±ä
+  428   1          // Íâ²àµç¸ÐÆ½»¬¹ý¶É
+  429   1          if(sum_outer > 16.0f)
+  430   1              ratio_outer = diff_outer / sum_outer;
+  431   1          else if(sum_outer < 3.0f)
+  432   1              ratio_outer = 0;
+  433   1          else
+  434   1              ratio_outer = (diff_outer / sum_outer) * (sum_outer - 3.0f) / 7.0f; // 5-12·¶Î§ÄÚÏßÐÔ¹ý¶É
+  435   1              
+  436   1          
+  437   1          // ×ÝÏòµç¸ÐÆ½»¬¹ý¶É
+  438   1          if(sum_vertical > 16.0f)
+  439   1              ratio_vertical = diff_vertical / sum_vertical;
+  440   1          else if(sum_vertical < 3.0f)
+  441   1              ratio_vertical = 0;
+  442   1          else
+  443   1              ratio_vertical = (diff_vertical / sum_vertical) * (sum_vertical - 3.0f) / 7.0f; // 5-12·¶Î§ÄÚÏßÐÔ
+             -¹ý¶É
+  444   1          
+  445   1              
+  446   1              
+C251 COMPILER V5.60.0,  Elec                                                               21/06/25  19:17:12  PAGE 8   
+
+  447   1          // ÈüµÀÀàÐÍÊ¶±ð - ¸ù¾ÝÎåµç¸ÐÌØÕ÷ÅÐ¶Ï
+  448   1          if (track_type == WEIGHT_STRAIGHT || track_type == 4) // 0. µ±Ç°ÈÏÎªÊÇÆÕÍ¨ÈüµÀÊ±£¬³¢ÊÔÅÐ¶ÏÌØÊâÈüµÀ tr
+             -ack_type 4 ´ú±íÅÜ·É
+  449   1          {    
+  450   2              // 1. Ö±½ÇÍäµÀÌØÕ÷
+  451   2              if(((normalized_data[SENSOR_VL] > 65.0f && normalized_data[SENSOR_HR] < 35.0f && normalized_data[
+             -SENSOR_VR] < 20.0f) || //×ó×ª
+  452   2                      (normalized_data[SENSOR_VR] > 65.0f && normalized_data[SENSOR_HL] < 30.0f && normalized_d
+             -ata[SENSOR_VL] < 20.0f)) &&  //ÓÒ×ª
+  453   2                                                                      normalized_data[SENSOR_HC] < 75.0f && 
+  454   2                      signal_strength > 25.0f && signal_strength < 50.0f) // µ÷ÕûÐÅºÅÇ¿¶È·¶Î§
+  455   2              {
+  456   3                  track_type = WEIGHT_RIGHT_ANGLE; // Ö±½ÇÍäµÀ
+  457   3              }
+  458   2              // else if (((normalized_data[SENSOR_HC] > 60.0f && normalized_data[SENSOR_HMR] > 88.0f && normal
+             -ized_data[SENSOR_VL] > 50.0f && normalized_data[SENSOR_VR] > 75.0f) ||  //ÄæÊ±Õë
+  459   2              // (normalized_data[SENSOR_HC] > 80.0f && normalized_data[SENSOR_HML] > 80.0f && normalized_data[
+             -SENSOR_HMR] < 45.0f && normalized_data[SENSOR_VL] > 75.0f && normalized_data[SENSOR_VR] > 45.0f)) && 
+  460   2              // track_ten_flag == 1 && signal_strength > 50.0f ) 
+  461   2              // {
+  462   2              //     track_type = 2; //Ê®×ÖÔ²»·
+  463   2              //     track_ten_flag = 0; 
+  464   2              //     ten_change_flag = 1;//¸ÐÓ¦µ½Èë»·£¬ÑÓÊ±2sÔÙÈÃtrack_ten_flag=1
+  465   2                                      
+  466   2              // }
+  467   2              else if((normalized_data[SENSOR_HR] > 70.0f && normalized_data[SENSOR_HC] > 90.0f && ((normalized
+             -_data[SENSOR_HR] + normalized_data[SENSOR_VR]) - (normalized_data[SENSOR_HL] + normalized_data[SENSOR_VL]) > 80.0f))  //
+             -ÓÒ»·µº
+  468   2                       && signal_strength > 48.0f )    
+  469   2              {
+  470   3                  track_type = 3;// »·µº
+  471   3              }
+  472   2          }
+  473   1          else if (track_type == WEIGHT_RIGHT_ANGLE) // 1. Ö±½ÇÍäµÀ
+  474   1              {
+  475   2                      if (normalized_data[SENSOR_VL] > 60.0f && normalized_data[SENSOR_VR] < 30.0f )
+  476   2                      {
+  477   3                              track_type_zj = 1; //×ó×ª
+  478   3                      }
+  479   2                      else if (normalized_data[SENSOR_VR] > 60.0f && normalized_data[SENSOR_VL] < 30.0f )
+  480   2                      {
+  481   3                              track_type_zj = 2; //ÓÒ×ª
+  482   3                      }
+  483   2                      
+  484   2                      if (track_type_zj != 0)
+  485   2                      {
+  486   3                              // »Øµ½Ö±µÀ - ¿ÉÑ¡:Ôö¼Ó signal_strength < 45.0f ÅÐ¶Ï
+  487   3                              if (normalized_data[SENSOR_VR] < 20.0f && normalized_data[SENSOR_VL] < 20.0f ) 
+  488   3                              {
+  489   4                                      track_type = WEIGHT_STRAIGHT; 
+  490   4                                      track_type_zj = 0;
+  491   4                              }
+  492   3      //                      if (signal_strength > 50) // Ö±½ÇÓÒ¹Õ½øÔ²»·µÄÌØÊâµã
+  493   3      //                      {
+  494   3      //                              track_type = WEIGHT_ROUNDABOUT; 
+  495   3      //                              // track_type_zj = 0;
+  496   3      //                          // weight_outer = 0.4;  // »»³ÉÖ±µÀµÄÈ¨
+  497   3      //                          // weight_middle = 0.1;
+  498   3      //                          // weight_vertical = 0.1;
+  499   3      //                          // filter_param = track_weights[WEIGHT_STRAIGHT].filter_param;
+  500   3      //                          // max_change_rate = track_weights[WEIGHT_STRAIGHT].max_change_rate;
+  501   3      //                      }
+  502   3                      }
+  503   2              }
+  504   1          else if (track_type == WEIGHT_CROSS) // 2. Ê®×ÖÔ²»·
+  505   1          {
+C251 COMPILER V5.60.0,  Elec                                                               21/06/25  19:17:12  PAGE 9   
+
+  506   2                      // ³ö»·  
+  507   2                      if (((normalized_data[SENSOR_HC] > 70.0f && normalized_data[SENSOR_VL] > 80.0f && normalized_data[SENSO
+             -R_VR] > 70.0f)  || //ÄæÊ±Õë
+  508   2                                               (normalized_data[SENSOR_HC] > 80.0f && normalized_data[SENSOR_VL] > 70.0f && normalized_data[SENSOR
+             -_VR] > 80.0f )) &&
+  509   2                                                      track_ten_flag == 1 && signal_strength > 50.0f )  //Ë³Ê±Õë
+  510   2                       {
+  511   3                              track_type = WEIGHT_STRAIGHT; //»ØÖ±µÀ
+  512   3                              track_ten_flag = 0;
+  513   3                              ten_change_flag = 1; //¸ÐÓ¦µ½³ö»·ÑÓÊ±2sÔÙÈÃtrack_ten_flag=1     
+  514   3                       }
+  515   2              }
+  516   1          else if (track_type == WEIGHT_ROUNDABOUT) // 3. »·µº   
+  517   1          {
+  518   2              if(normalized_data[SENSOR_HR] > 80.0f && normalized_data[SENSOR_HL] < 40.0f && track_route == 0)
+  519   2              {
+  520   3                  // ÓÒ»·µº
+  521   3                  track_route = 1;
+  522   3                                                      track_route_status = 1;
+  523   3              }
+  524   2              // else if(normalized_data[SENSOR_HR] < 30.0f && normalized_data[SENSOR_HL] > 70.0f && track_rout
+             -e == 0)
+  525   2              // {
+  526   2              //     // ×ó»·µº
+  527   2              //     track_route = 2;
+  528   2                      //      track_route_status = 1;
+  529   2              // }
+  530   2                      if(track_route_status == 2 &&(normalized_data[SENSOR_VL] > 30.0f && normalized_data[SENSOR_HL] < 55.0f 
+             -&& normalized_data[SENSOR_HC] < 65.0f && normalized_data[SENSOR_VR] > 75.0f)) //ÓÒ»·
+  531   2                      {
+  532   3      //                      track_route = 0;
+  533   3                              track_route_status = 3;
+  534   3      //                      track_type == WEIGHT_RIGHT_ANGLE; // ¼ìÑéÎ»µã
+  535   3                      }
+  536   2          }
+  537   1      
+  538   1          // 4. ³¬³öÖÃ0
+  539   1      //   if(normalized_data[SENSOR_HC] < 2.0f && normalized_data[SENSOR_HMR] < 2.0f && normalized_data[SENSOR
+             -_HML] < 2.0f)
+  540   1      //   {
+  541   1      //       track_type = WEIGHT_STRAIGHT;
+  542   1      //       track_route = 0;
+  543   1      //       track_route_status = 0;
+  544   1      //         track_type_zj = 0;
+  545   1      //   }
+  546   1          
+  547   1          // ¸ù¾ÝÈüµÀÀàÐÍºÍÐÅºÅÇ¿¶Èµ÷ÕûÈ¨ÖØ
+  548   1         switch(track_type)
+  549   1         {
+  550   2             case WEIGHT_STRAIGHT: // ÆÕÍ¨ÈüµÀ
+  551   2                 // Ê¹ÓÃÖ±µÀÈ¨ÖØ
+  552   2                 weight_outer = track_weights[WEIGHT_STRAIGHT].weight_outer;
+  553   2      
+  554   2                 weight_vertical = track_weights[WEIGHT_STRAIGHT].weight_vertical;
+  555   2                 filter_param = track_weights[WEIGHT_STRAIGHT].filter_param;
+  556   2                 max_change_rate = track_weights[WEIGHT_STRAIGHT].max_change_rate;
+  557   2                 break;
+  558   2                 
+  559   2             case WEIGHT_RIGHT_ANGLE: // Ö±½ÇÍäµÀ
+  560   2                 // Ê¹ÓÃÖ±½ÇÍäµÀÈ¨ÖØ
+  561   2                 weight_outer = track_weights[WEIGHT_RIGHT_ANGLE].weight_outer;
+  562   2      
+  563   2                 weight_vertical = track_weights[WEIGHT_RIGHT_ANGLE].weight_vertical;
+  564   2                 filter_param = track_weights[WEIGHT_RIGHT_ANGLE].filter_param;
+  565   2                 max_change_rate = track_weights[WEIGHT_RIGHT_ANGLE].max_change_rate;
+  566   2                 break;
+C251 COMPILER V5.60.0,  Elec                                                               21/06/25  19:17:12  PAGE 10  
+
+  567   2                 
+  568   2             case WEIGHT_CROSS: // Ê®×ÖÔ²»·
+  569   2                 // Ê¹ÓÃÊ®×ÖÔ²»·È¨ÖØ
+  570   2                 weight_outer = track_weights[WEIGHT_CROSS].weight_outer;
+  571   2      
+  572   2                 weight_vertical = track_weights[WEIGHT_CROSS].weight_vertical;
+  573   2                 filter_param = track_weights[WEIGHT_CROSS].filter_param;
+  574   2                 max_change_rate = track_weights[WEIGHT_CROSS].max_change_rate;
+  575   2                 break;
+  576   2                 
+  577   2             case WEIGHT_ROUNDABOUT: // »·µº
+  578   2                 // Ê¹ÓÃ»·µºÈ¨ÖØ
+  579   2                 weight_outer = track_weights[WEIGHT_ROUNDABOUT].weight_outer;
+  580   2      
+  581   2                 weight_vertical = track_weights[WEIGHT_ROUNDABOUT].weight_vertical;
+  582   2                 filter_param = track_weights[WEIGHT_ROUNDABOUT].filter_param;
+  583   2                 max_change_rate = track_weights[WEIGHT_ROUNDABOUT].max_change_rate;
+  584   2                 break;
+  585   2             default:
+  586   2                 // Ê¹ÓÃÄ¬ÈÏµÄÖ±µÀÈ¨ÖØ
+  587   2                 weight_outer = track_weights[WEIGHT_STRAIGHT].weight_outer;
+  588   2      
+  589   2                 weight_vertical = track_weights[WEIGHT_STRAIGHT].weight_vertical;
+  590   2                 filter_param = track_weights[WEIGHT_STRAIGHT].filter_param;
+  591   2                 max_change_rate = track_weights[WEIGHT_STRAIGHT].max_change_rate;
+  592   2                 break;
+  593   2         }
+  594   1          
+  595   1          // ÌØÊâÇé¿ö´¦Àí£ºµ±ËùÓÐµç¸ÐÖµ¶¼ºÜÐ¡Ê±£¬¿ÉÄÜÒÑ¾­Æ«ÀëÈüµÀ
+  596   1          if(sum_outer < 10.0f && sum_vertical < 10.0f && center_value < 10.0f)
+  597   1          {
+  598   2      //        if(last_pos > 0)
+  599   2      //            return (last_pos + 10);  // ÏòÓÒÆ«Àë
+  600   2      //        else
+  601   2      //            return (last_pos - 10); // Ïò×óÆ«Àë
+  602   2                      
+  603   2                      return last_pos;
+  604   2          }
+  605   1          
+  606   1          // µ±ÖÐÐÄµç¸Ð´óÓÚãÐÖµÊ±£¬ÈÏÎª³µÁ¾½Ó½üÖÐÐÄ£¬¶ÔÎ»ÖÃ½øÐÐÐÞÕý
+  607   1          if(center_value > 60.0f) {
+  608   2              // ÐÞÕýÏµÊý£¬µ±ÖÐÐÄµç¸ÐÇ¿¶È¸ßÊ±£¬ÐÞÕýÏµÊý´ó
+  609   2              center_correction = (center_value - 40.0f) / 60.0f * 0.5f;  // ×î´óÐÞÕý50%
+  610   2          }
+  611   1          
+  612   1          // Èý×é²î±ÈºÍ¼ÓÈ¨Æ½¾ù¼ÆËãÎ»ÖÃ
+  613   1          pos = (int16)((ratio_outer * weight_outer + 
+  614   1                         ratio_vertical * weight_vertical) * 100.0f);
+  615   1          
+  616   1          // Ó¦ÓÃÖÐÐÄµç¸ÐÐÞÕý - ÏòÖÐÐÄÏßÀ­½ü
+  617   1          pos = (int16)(pos * (1.0f - center_correction));
+  618   1          
+  619   1          // ÏÞÖÆ·¶Î§ÔÚ-100µ½100Ö®¼ä
+  620   1          if(pos > 100) pos = 100;
+  621   1          if(pos < -100) pos = -100;
+  622   1          
+  623   1          // Î»ÖÃ±ä»¯Á¿ÏÞÖÆ£¬·ÀÖ¹Í»±ä
+  624   1          position_change = pos - last_pos;
+  625   1          if(position_change > max_change_rate)
+  626   1              pos = last_pos + max_change_rate;
+  627   1          else if(position_change < -max_change_rate)
+  628   1              pos = last_pos - max_change_rate;
+  629   1          
+  630   1          // Ó¦ÓÃµÍÍ¨ÂË²¨£¬Æ½»¬Î»ÖÃ±ä»¯
+  631   1          pos = (int16)(filter_param * pos + (1-filter_param) * last_pos);
+  632   1          
+C251 COMPILER V5.60.0,  Elec                                                               21/06/25  19:17:12  PAGE 11  
+
+  633   1          // Èç¹ûÐÅºÅÇ¿¶È¸ß£¬ÔöÇ¿ÂË²¨Ð§¹û
+  634   1          if(signal_strength > 60.0f) {
+  635   2              // Ó¦ÓÃÈýµãÆ½¾ùÂË²¨£¬½øÒ»²½Æ½»¬
+  636   2              pos = (pos + last_pos + very_last_pos) / 3;
+  637   2          }
+  638   1                      
+  639   1                      
+  640   1      //              if (track_type == 0 && (pos <= 10 || pos >= -10))
+  641   1      //              {
+  642   1      //                              speed_count++;
+  643   1      //                      
+  644   1      //                              if (speed_count >= 12)
+  645   1      //                              {
+  646   1      //                                              track_type = 4;
+  647   1      //                                              speed_count = 0;
+  648   1      //                              }
+  649   1      //              }
+  650   1      //              else
+  651   1      //              {
+  652   1      //                              speed_count = 0;
+  653   1      //              }
+  654   1      //              
+  655   1      //              if (track_type == 4 && (pos > 10 || pos < -10))
+  656   1      //              {
+  657   1      //                      track_type = 0;
+  658   1      //              }
+  659   1                      
+  660   1          
+  661   1          // ¸üÐÂÀúÊ·Î»ÖÃÖµ
+  662   1          very_very_last_pos = very_last_pos;
+  663   1          very_last_pos = last_pos;
+  664   1          last_pos = pos;
+  665   1          
+  666   1          return pos;
+  667   1      }
+  668          
+  669          
+  670          
+  671          //-----------------------------------------------------------------------------
+  672          // @brief       µç´Å±£»¤Âß¼­º¯Êý
+  673          // @param   ÎÞ
+  674          // @return  ±£»¤´¥·¢±êÖ¾Î»£¬1±íÊ¾ÒÑ´¥·¢±£»¤
+  675          // @author  ZP
+  676          // Sample usage: protection_flag = check_electromagnetic_protection();
+  677          //-----------------------------------------------------------------------------
+  678          uint8 check_electromagnetic_protection(void)
+  679          {
+  680   1          // ÔÚº¯Êý¿ªÊ¼´¦ÉùÃ÷ËùÓÐ±äÁ¿
+  681   1          uint8 is_out_of_track = 0;    // ±ê¼ÇÊÇ·ñÍÑÀëÈüµÀµÄ±êÖ¾Î»
+  682   1          uint16 sum_value = 0;         // ËùÓÐµç¸ÐÖµµÄ×ÜºÍ
+  683   1          uint16 threshold = 175;       // ãÐÖµ£¬ÐèÒª¸ù¾ÝÎåµç¸ÐµÄÊµ¼ÊÇé¿öµ÷Õû£¨Ôö¼Ó£©
+  684   1          static uint8 out_of_track_count = 0;    // Á¬Ðø¼ì²âµ½ÍÑÀëÈüµÀµÄ´ÎÊý¼ÆÊýÆ÷
+  685   1          static uint8 in_track_count = 0;        // Á¬Ðø¼ì²âµ½ÔÚ¹ìµÀÉÏµÄ´ÎÊý¼ÆÊýÆ÷
+  686   1          static uint8 protection_triggered = 0;  // ±£»¤´¥·¢±êÖ¾Î»£¬1±íÊ¾ÒÑ´¥·¢±£»¤
+  687   1          uint8 i;
+  688   1          uint8 trigger_reason = 0;     // ¼ÇÂ¼´¥·¢Ô­Òò£¬ÓÃÓÚµ÷ÊÔ
+  689   1          
+  690   1          if (Go_Flag == 1)
+  691   1              {
+  692   2                      // ¼ÆËãËùÓÐµç¸ÐµÄºÍÖµ
+  693   2                      for(i = 0; i < SENSOR_COUNT; i++)
+  694   2                      {
+  695   3                              sum_value += result[i];
+  696   3                      }
+  697   2                      
+  698   2                      // ÅÐ¶ÏÊÇ·ñÍÑÀëÈüµÀµÄÌõ¼þ
+C251 COMPILER V5.60.0,  Elec                                                               21/06/25  19:17:12  PAGE 12  
+
+  699   2                      // 1. ËùÓÐµç¸ÐÖµ×ÜºÍ¹ýÐ¡£¬ËµÃ÷¿ÉÄÜÍÑÀëÈüµÀ
+  700   2                      if(sum_value < threshold)
+  701   2                      {
+  702   3                              is_out_of_track = 1;
+  703   3                              trigger_reason = 1;
+  704   3                      }
+  705   2                      
+  706   2                      // 2. ¹éÒ»»¯ºóµÄÖµ¶¼ºÜÐ¡£¬ËµÃ÷¿ÉÄÜÍÑÀëÈüµÀ
+  707   2                      if(normalized_data[SENSOR_HL] < 5.0f && normalized_data[SENSOR_VL] < 5.0f && 
+  708   2                         normalized_data[SENSOR_HC] < 5.0f && normalized_data[SENSOR_VR] < 5.0f && 
+  709   2                         normalized_data[SENSOR_HR] < 5.0f)
+  710   2                      {
+  711   3                              is_out_of_track = 1;
+  712   3                              trigger_reason = 2;
+  713   3                      }
+  714   2                      
+  715   2                      // 3. Î»ÖÃÆ«²î¹ý´ó£¬ËµÃ÷¿ÉÄÜÆ«ÀëÈüµÀÌ«¶à
+  716   2                      if(position < -90 || position > 90)
+  717   2                      {
+  718   3                              // Ö»ÓÐµ±µç¸ÐÖµ×ÜºÍÒ²½ÏÐ¡Ê±²ÅÅÐ¶ÏÎª³öÈüµÀ
+  719   3                              if(sum_value < threshold * 2)
+  720   3                              {
+  721   4                                      is_out_of_track = 1;
+  722   4                                      trigger_reason = 3;
+  723   4                              }
+  724   3                      }
+  725   2                      
+  726   2                      // Á¬Ðø¼ì²âÂß¼­£¬·ÀÖ¹Å¼È»µÄµÍÖµµ¼ÖÂÎóÅÐ
+  727   2                      if(is_out_of_track)
+  728   2                      {
+  729   3                              out_of_track_count++;
+  730   3                              in_track_count = 0;  // ÖØÖÃÔÚ¹ìµÀÉÏµÄ¼ÆÊý
+  731   3                              
+  732   3                              if(out_of_track_count >= 50 && !protection_triggered)  // Á¬Ðø5´Î¼ì²âµ½ÍÑÀëÈüµÀ²Å´¥·¢±£»¤
+  733   3                              {
+  734   4                                      protection_triggered = 1;
+  735   4                                      // ÕâÀï¿ÉÒÔÊä³ö´¥·¢±£»¤µÄÐÅÏ¢£¬ÓÃÓÚµ÷ÊÔ
+  736   4              ////            sprintf(g_TxData, "Protection triggered! Reason: %d, Sum: %d\n", trigger_reason, sum_val
+             -ue);
+  737   4              ////            uart_putstr(UART_4, g_TxData);
+  738   4                              }
+  739   3                      }
+  740   2                      // else
+  741   2                      // {
+  742   2                      //     // Èç¹û¼ì²âÕý³££¬¼ÆÊýÆ÷Ôö¼Ó
+  743   2                      //     in_track_count++;
+  744   2                      //     if(out_of_track_count > 0)
+  745   2                      //         out_of_track_count--;
+  746   2                                      
+  747   2                      //     // ×Ô¶¯»Ö¸´»úÖÆ£ºÁ¬Ðø20´Î¼ì²âµ½Õý³££¬Ôò½â³ý±£»¤×´Ì¬
+  748   2                      //     if(in_track_count >= 20 && protection_triggered)
+  749   2                      //     {
+  750   2                      //         protection_triggered = 0;
+  751   2                      //         out_of_track_count = 0;
+  752   2                      //         in_track_count = 0;
+  753   2                      //         // ¿ÉÒÔÊä³ö×Ô¶¯»Ö¸´µÄÐÅÏ¢£¬ÓÃÓÚµ÷ÊÔ
+  754   2                      //         // sprintf(g_TxData, "Protection auto reset!\n");
+  755   2                      //         // uart_putstr(UART_4, g_TxData);
+  756   2                      //     }
+  757   2                      // }
+  758   2                      
+  759   2                      return protection_triggered;
+  760   2              }
+  761   1              return 0;
+  762   1      }
+  763          
+C251 COMPILER V5.60.0,  Elec                                                               21/06/25  19:17:12  PAGE 13  
+
+  764          
+  765          
+  766          // ÏÔÊ¾µç´Å´«¸ÐÆ÷Êý¾Ý
+  767          void display_electromagnetic_data(void)
+  768          {
+  769   1          // ÏÔÊ¾Ô­Ê¼ÂË²¨Êý¾ÝºÍ¹éÒ»»¯Êý¾Ý
+  770   1              
+  771   1              oled_p6x8str_spi(1,0,"HL:");    
+  772   1              oled_uint16_spi(3*8,0,result[SENSOR_HL]);
+  773   1              oled_p6x8str_spi(9*8,0,"N:");   
+  774   1              oled_printf_float_spi(11*8,0,normalized_data[SENSOR_HL],3,2);
+  775   1              
+  776   1              oled_p6x8str_spi(1,1,"VL:");    
+  777   1              oled_uint16_spi(3*8,1,result[SENSOR_VL]);
+  778   1              oled_p6x8str_spi(9*8,1,"N:");   
+  779   1              oled_printf_float_spi(11*8,1,normalized_data[SENSOR_VL],3,2);
+  780   1              
+  781   1              oled_p6x8str_spi(1,2,"HC:");    
+  782   1              oled_uint16_spi(3*8,2,result[SENSOR_HC]);
+  783   1              oled_p6x8str_spi(9*8,2,"N:");   
+  784   1              oled_printf_float_spi(11*8,2,normalized_data[SENSOR_HC],3,2);
+  785   1      
+  786   1              oled_p6x8str_spi(1,3,"VR:");    
+  787   1              oled_uint16_spi(3*8,3,result[SENSOR_VR]);
+  788   1              oled_p6x8str_spi(9*8,3,"N:");   
+  789   1              oled_printf_float_spi(11*8,3,normalized_data[SENSOR_VR],3,2);
+  790   1              
+  791   1              oled_p6x8str_spi(1,4,"HR:");    
+  792   1              oled_uint16_spi(3*8,4,result[SENSOR_HR]);
+  793   1              oled_p6x8str_spi(9*8,4,"N:");   
+  794   1              oled_printf_float_spi(11*8,4,normalized_data[SENSOR_HR],3,2);
+  795   1      
+  796   1      //    
+  797   1      //    // ÏÔÊ¾Î»ÖÃºÍ²î±ÈºÍÊý¾Ý
+  798   1      //    ips114_showstr_simspi(0,7,"Pos:");
+  799   1      //    ips114_showint16_simspi(5*8, 7, position);
+  800   1      //    
+  801   1      //    // ÏÔÊ¾±£»¤×´Ì¬
+  802   1      //    ips114_showstr_simspi(10*8,7,"P:");
+  803   1      //    ips114_showuint8_simspi(12*8, 7, protection_flag);
+  804   1      } 
+
+
+Module Information          Static   Overlayable
+------------------------------------------------
+  code size            =      7024     ------
+  ecode size           =    ------     ------
+  data size            =    ------     ------
+  idata size           =    ------     ------
+  pdata size           =    ------     ------
+  xdata size           =       401     ------
+  xdata-const size     =    ------     ------
+  edata size           =    ------     ------
+  bit size             =    ------     ------
+  ebit size            =    ------     ------
+  bitaddressable size  =    ------     ------
+  ebitaddressable size =    ------     ------
+  far data size        =    ------     ------
+  huge data size       =    ------     ------
+  const size           =    ------     ------
+  hconst size          =       529     ------
+End of Module Information.
+
+
+C251 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

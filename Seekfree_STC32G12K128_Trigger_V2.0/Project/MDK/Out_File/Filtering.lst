@@ -1,0 +1,91 @@
+C251 COMPILER V5.60.0,  Filtering                                                          21/06/25  19:17:12  PAGE 1   
+
+
+C251 COMPILER V5.60.0, COMPILATION OF MODULE Filtering
+OBJECT MODULE PLACED IN .\Out_File\Filtering.obj
+COMPILER INVOKED BY: E:\Kust-Travel\Keil_v5\C251\BIN\C251.EXE ..\CODE\Filtering.c LARGE INTR2 FLOAT64 WARNINGLEVEL(3) OP
+                    -TIMIZE(0,SPEED) BROWSE INCDIR(..\..\Libraries\libraries;..\..\Libraries\seekfree_libraries;..\..\Libraries\seekfree_peri
+                    -pheral;..\CODE;..\USER\inc;..\USER\src;..\..\Libraries\seekfree_components) DEBUG PRINT(.\Out_File\Filtering.lst) OBJECT
+                    -(.\Out_File\Filtering.obj) 
+
+stmt  level    source
+
+    1          #include "Filtering.h"
+    2          
+    3          
+    4          const float imu693kf_Q = 0.17;
+    5          const float imu693kf_R = 0.20;
+    6          
+    7          KalmanFilter imu693_kf;
+    8          
+    9          LowPassFilter leftSpeedFilt;
+   10          LowPassFilter rightSpeedFilt;
+   11          
+   12          
+   13          void Kalman_Init(KalmanFilter* kf, float F, float B, float Q, float R, float initial_x)
+   14          {
+   15   1          kf->F = F;
+   16   1          kf->B = B;
+   17   1          kf->Q = Q;
+   18   1          kf->R = R;
+   19   1          kf->P = 1.0;       // 初始协方差
+   20   1          kf->x = initial_x;
+   21   1      }
+   22          
+   23          void Kalman_Predict(KalmanFilter* kf, float u)
+   24          {
+   25   1          kf->x = kf->F * kf->x + kf->B * u;
+   26   1          kf->P = kf->F * kf->P * kf->F + kf->Q;
+   27   1      }
+   28          
+   29          float Kalman_Update(KalmanFilter* kf, float z)
+   30          {
+   31   1          kf->K = kf->P / (kf->P + kf->R);
+   32   1          kf->x += kf->K * (z - kf->x);
+   33   1          kf->P *= (1 - kf->K);
+   34   1          return kf->x;
+   35   1      }
+   36          
+   37          void LowPass_init(LowPassFilter* instance, float alpha)
+   38          {
+   39   1              instance->alpha = alpha;
+   40   1              instance->output = 0;
+   41   1              instance->lastoutput = 0;
+   42   1      }
+   43          
+   44          float LowPass_Filter(LowPassFilter* instance, float input) 
+   45          {
+   46   1          // 实现一阶低通滤波的核心算法
+   47   1          instance->output = instance->alpha * input + (1 - instance->alpha) * instance->lastoutput;
+   48   1          
+   49   1          // 更新上一时刻的输入值
+   50   1          instance->lastoutput = instance->output;
+   51   1          
+   52   1          return instance->output;
+   53   1      }
+
+
+Module Information          Static   Overlayable
+------------------------------------------------
+C251 COMPILER V5.60.0,  Filtering                                                          21/06/25  19:17:12  PAGE 2   
+
+  code size            =      1003     ------
+  ecode size           =    ------     ------
+  data size            =    ------     ------
+  idata size           =    ------     ------
+  pdata size           =    ------     ------
+  xdata size           =       108     ------
+  xdata-const size     =    ------     ------
+  edata size           =    ------     ------
+  bit size             =    ------     ------
+  ebit size            =    ------     ------
+  bitaddressable size  =    ------     ------
+  ebitaddressable size =    ------     ------
+  far data size        =    ------     ------
+  huge data size       =    ------     ------
+  const size           =    ------     ------
+  hconst size          =         8     ------
+End of Module Information.
+
+
+C251 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)
